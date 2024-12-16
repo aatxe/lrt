@@ -8,8 +8,10 @@
 #include "Luau/Parser.h"
 
 #include "queijo/net.h"
+#include "queijo/fs.h"
 #include "queijo/ref.h"
 #include "queijo/runtime.h"
+#include "uv.h"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -68,6 +70,7 @@ void setupState(Runtime& runtime, lua_State* L)
         {NULL, NULL},
     };
 
+    luaopen_fs(L);
     load_queijo_runtime(L, funcs);
 
     luaL_sandbox(L);

@@ -15,6 +15,11 @@ add_subdirectory(extern/luau)
 # libuv setup
 add_subdirectory(extern/libuv)
 
+# wolfssl setup
+set(BUILD_SHARED_LIBS OFF)
+set(WOLFSSL_CURL "yes")
+add_subdirectory(extern/wolfssl)
+
 # curl setup
 set(USE_LIBIDN2 OFF)
 set(USE_NGHTTP2 OFF)
@@ -26,9 +31,12 @@ set(BUILD_CURL_EXE OFF)
 set(BUILD_SHARED_LIBS OFF)
 set(BUILD_STATIC_LIBS ON)
 
+set(CURL_USE_WOLFSSL ON)
+set(WOLFSSL_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/extern/wolfssl/include)
+set(WOLFSSL_LIBRARY wolfssl::wolfssl)
+
 add_subdirectory(extern/curl)
 
-set(CURL_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/curl/include)
 #
 
 add_executable(Queijo.CLI)
@@ -46,7 +54,7 @@ target_include_directories(Queijo.Net PUBLIC Net/include ${LIBUV_INCLUDE_DIR})
 target_include_directories(Queijo.Task PUBLIC Task/include ${LIBUV_INCLUDE_DIR})
 
 target_link_libraries(Queijo.Fs PRIVATE Luau.VM uv)
-target_link_libraries(Queijo.Net PRIVATE Luau.VM uv libcurl)
+target_link_libraries(Queijo.Net PRIVATE Luau.VM uv ${WOLFSSL_LIBRARY} libcurl)
 target_link_libraries(Queijo.Task PRIVATE Luau.VM uv)
 target_link_libraries(Queijo.CLI PRIVATE Luau.Compiler Luau.Config Luau.CodeGen Luau.VM Queijo.Fs Queijo.Net Queijo.Task)
 

@@ -33,7 +33,7 @@ set(BUILD_STATIC_LIBS ON)
 
 set(CURL_USE_WOLFSSL ON)
 set(WOLFSSL_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/extern/wolfssl/include)
-set(WOLFSSL_LIBRARY wolfssl::wolfssl)
+set(WOLFSSL_LIBRARY wolfssl)
 
 add_subdirectory(extern/curl)
 

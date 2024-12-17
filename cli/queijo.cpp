@@ -41,7 +41,9 @@ void load_queijo_runtime(lua_State* L, const luaL_Reg* libs)
 void setupState(lua_State* L)
 {
     /* register new libraries */
-    Luau::CodeGen::create(L);
+    if (Luau::CodeGen::isSupported())
+        Luau::CodeGen::create(L);
+
     // register the builtin tables
     luaL_openlibs(L);
 

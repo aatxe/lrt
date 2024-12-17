@@ -1,3 +1,10 @@
+target_sources(Queijo.Runtime PRIVATE
+    runtime/include/queijo/ref.h
+    runtime/include/queijo/runtime.h
+
+    runtime/src/runtime.cpp
+)
+
 target_sources(Queijo.Fs PRIVATE
     fs/include/queijo/fs.h
 

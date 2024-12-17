@@ -9,64 +9,28 @@
 #include "FileUtils.h"
 
 #include "queijo/net.h"
+#include "queijo/ref.h"
+#include "queijo/runtime.h"
 
 #ifdef _WIN32
 #include <Windows.h>
 #endif
 
+#include <mutex>
+#include <string>
+#include <vector>
+
 static bool codegen = false;
 static int program_argc = 0;
 static char** program_argv = nullptr;
 
-// Only interact with Ref from main thread! (one day it might even get enforced)
-struct Ref
-{
-    Ref(lua_State* L, int idx)
-    {
-        GL = lua_mainthread(L);
-        refId = lua_ref(L, idx);
-    }
-    ~Ref()
-    {
-        lua_unref(GL, refId);
-    }
-    Ref(Ref&& rhs) noexcept
-    {
-        std::swap(GL, rhs.GL);
-        std::swap(refId, rhs.refId);
-    }
-    Ref& operator=(Ref&& rhs) noexcept
-    {
-        std::swap(GL, rhs.GL);
-        std::swap(refId, rhs.refId);
-        return *this;
-    }
-    Ref(const Ref& rhs) = delete;
-    Ref& operator=(const Ref& rhs) = delete;
-
-    void push(lua_State* L)
-    {
-        lua_getref(L, refId);
-    }
-
-    lua_State* GL = nullptr;
-    int refId = 0;
-};
-
-struct Runtime
-{
-    lua_State* GL = nullptr;
-
-    std::vector<std::function<void()>> continuations;
-    std::vector<std::pair<Ref, int>> runningThreads;
-};
 static Runtime runtime;
 
 static Luau::CompileOptions copts()
 {
     Luau::CompileOptions result = {};
     result.optimizationLevel = 2;
-    result.debugLevel = 0;
+    result.debugLevel = 2;
     result.typeInfoLevel = 1;
     result.coverageLevel = 0;
 
@@ -84,8 +48,12 @@ void load_queijo_runtime(lua_State* L, const luaL_Reg* libs)
     }
 }
 
-void setupState(lua_State* L)
+void setupState(Runtime& runtime, lua_State* L)
 {
+    runtime.GL = L;
+
+    lua_setthreaddata(L, &runtime);
+
     /* register new libraries */
     if (Luau::CodeGen::isSupported())
         Luau::CodeGen::create(L);
@@ -94,6 +62,7 @@ void setupState(lua_State* L)
     luaL_openlibs(L);
 
     luaopen_net(L);
+
     lua_pop(L, 1);
 
     static const luaL_Reg funcs[] = {
@@ -119,11 +88,16 @@ bool setupArguments(lua_State* L, int argc, char** argv)
 static bool runToCompletion(Runtime& runtime)
 {
     // While there is some C++ or Luau code left to run
-    while (!runtime.runningThreads.empty() || !runtime.continuations.empty())
+    while (!runtime.runningThreads.empty() || runtime.hasContinuations())
     {
         // Complete all C++ continuations
-        auto continuations = std::move(runtime.continuations);
-        runtime.continuations.clear();
+        std::vector<std::function<void()>> continuations;
+
+        {
+            std::unique_lock lock(runtime.continuationMutex);
+            continuations = std::move(runtime.continuations);
+            runtime.continuations.clear();
+        }
 
         for (auto&& continuation : continuations)
             continuation();
@@ -134,7 +108,7 @@ static bool runToCompletion(Runtime& runtime)
         auto next = std::move(runtime.runningThreads.front());
         runtime.runningThreads.erase(runtime.runningThreads.begin());
 
-        next.first.push(runtime.GL);
+        next.ref.push(runtime.GL);
         lua_State* L = lua_tothread(runtime.GL, -1);
 
         if (L == nullptr)
@@ -146,7 +120,7 @@ static bool runToCompletion(Runtime& runtime)
         // We still have 'next' on stack to hold on to thread we are about to run
         lua_pop(runtime.GL, 1);
 
-        int status = lua_resume(L, nullptr, next.second);
+        int status = lua_resume(L, nullptr, next.argumentCount);
 
         if (status == LUA_YIELD)
         {
@@ -157,13 +131,11 @@ static bool runToCompletion(Runtime& runtime)
                 std::string error = "Top level yield cannot return any results";
                 error += "\nstacktrace:\n";
                 error += lua_debugtrace(L);
-                fprintf(stderr, error.c_str());
+                fprintf(stderr, "%s", error.c_str());
                 return false;
             }
 
-            lua_pushthread(L);
-            runtime.runningThreads.push_back({Ref(L, -1), 0});
-            lua_pop(L, 1);
+            runtime.runningThreads.push_back({true, getRefForThread(L), 0});
             continue;
         }
 
@@ -185,7 +157,7 @@ static bool runToCompletion(Runtime& runtime)
     return true;
 }
 
-static bool runFile(const char* name, lua_State* GL)
+static bool runFile(Runtime& runtime, const char* name, lua_State* GL)
 {
     std::optional<std::string> source = readFile(name);
     if (!source)
@@ -228,12 +200,8 @@ static bool runFile(const char* name, lua_State* GL)
         return false;
     }
 
-    Runtime runtime;
     runtime.GL = GL;
-
-    lua_pushthread(L);
-    runtime.runningThreads.push_back({Ref(L, -1), program_argc});
-    lua_pop(L, 1);
+    runtime.runningThreads.push_back({true, getRefForThread(L), program_argc});
 
     lua_pop(GL, 1);
 
@@ -302,14 +270,16 @@ int main(int argc, char** argv)
     std::unique_ptr<lua_State, void (*)(lua_State*)> globalState(luaL_newstate(), lua_close);
     lua_State* L = globalState.get();
 
-    setupState(L);
+    Runtime runtime;
+
+    setupState(runtime, L);
 
     int failed = 0;
 
     for (size_t i = 0; i < files.size(); ++i)
     {
         bool isLastFile = i == files.size() - 1;
-        failed += !runFile(files[i].c_str(), L);
+        failed += !runFile(runtime, files[i].c_str(), L);
     }
 
     return failed ? 1 : 0;

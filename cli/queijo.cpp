@@ -4,9 +4,8 @@
 
 #include "Luau/CodeGen.h"
 #include "Luau/Compiler.h"
+#include "Luau/FileUtils.h"
 #include "Luau/Parser.h"
-
-#include "FileUtils.h"
 
 #ifdef _WIN32
 #include <Windows.h>

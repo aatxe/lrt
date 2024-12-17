@@ -18,6 +18,7 @@ add_subdirectory(extern/libuv)
 # wolfssl setup
 set(BUILD_SHARED_LIBS OFF)
 set(WOLFSSL_CURL "yes")
+set(WOLFSSL_EXAMPLES "no")
 add_subdirectory(extern/wolfssl)
 
 # curl setup

@@ -78,7 +78,7 @@ static int getAsync(lua_State* L)
     std::thread thread = std::thread([=] {
         auto [error, data] = requestData(url);
 
-        runtime->scheduleLuauContinuation([=](lua_State* GL) {
+        runtime->scheduleLuauContinuation([error = std::move(error), data = std::move(data), refId](lua_State* GL) {
             lua_getref(GL, refId);
             lua_unref(GL, refId);
             lua_State* L = lua_tothread(GL, -1);

@@ -7,13 +7,59 @@
 #include "Luau/FileUtils.h"
 #include "Luau/Parser.h"
 
+#include "queijo/net.h"
+
 #ifdef _WIN32
 #include <Windows.h>
 #endif
 
 static bool codegen = false;
 static int program_argc = 0;
-char** program_argv = nullptr;
+static char** program_argv = nullptr;
+
+// Only interact with Ref from main thread! (one day it might even get enforced)
+struct Ref
+{
+    Ref(lua_State* L, int idx)
+    {
+        GL = lua_mainthread(L);
+        refId = lua_ref(L, idx);
+    }
+    ~Ref()
+    {
+        lua_unref(GL, refId);
+    }
+    Ref(Ref&& rhs) noexcept
+    {
+        std::swap(GL, rhs.GL);
+        std::swap(refId, rhs.refId);
+    }
+    Ref& operator=(Ref&& rhs) noexcept
+    {
+        std::swap(GL, rhs.GL);
+        std::swap(refId, rhs.refId);
+        return *this;
+    }
+    Ref(const Ref& rhs) = delete;
+    Ref& operator=(const Ref& rhs) = delete;
+
+    void push(lua_State* L)
+    {
+        lua_getref(L, refId);
+    }
+
+    lua_State* GL = nullptr;
+    int refId = 0;
+};
+
+struct Runtime
+{
+    lua_State* GL = nullptr;
+
+    std::vector<std::function<void()>> continuations;
+    std::vector<std::pair<Ref, int>> runningThreads;
+};
+static Runtime runtime;
 
 static Luau::CompileOptions copts()
 {
@@ -40,9 +86,14 @@ void load_queijo_runtime(lua_State* L, const luaL_Reg* libs)
 void setupState(lua_State* L)
 {
     /* register new libraries */
-    Luau::CodeGen::create(L);
+    if (Luau::CodeGen::isSupported())
+        Luau::CodeGen::create(L);
+
     // register the builtin tables
     luaL_openlibs(L);
+
+    luaopen_net(L);
+    lua_pop(L, 1);
 
     static const luaL_Reg funcs[] = {
         {NULL, NULL},
@@ -53,15 +104,86 @@ void setupState(lua_State* L)
     luaL_sandbox(L);
 }
 
-void setupArguments(lua_State* L, int argc, char** argv)
+bool setupArguments(lua_State* L, int argc, char** argv)
 {
-    lua_checkstack(L, argc);
+    if (!lua_checkstack(L, argc))
+        return false;
 
     for (int i = 0; i < argc; ++i)
         lua_pushstring(L, argv[i]);
+
+    return true;
 }
 
-// `repl` is used it indicate if a repl should be started after executing the file.
+static bool runToCompletion(Runtime& runtime)
+{
+    // While there is some C++ or Luau code left to run
+    while (!runtime.runningThreads.empty() || !runtime.continuations.empty())
+    {
+        // Complete all C++ continuations
+        auto continuations = std::move(runtime.continuations);
+        runtime.continuations.clear();
+
+        for (auto&& continuation : continuations)
+            continuation();
+
+        if (runtime.runningThreads.empty())
+            continue;
+
+        auto next = std::move(runtime.runningThreads.front());
+        runtime.runningThreads.erase(runtime.runningThreads.begin());
+
+        next.first.push(runtime.GL);
+        lua_State* L = lua_tothread(runtime.GL, -1);
+
+        if (L == nullptr)
+        {
+            fprintf(stderr, "Cannot resume a non-thread reference");
+            return false;
+        }
+
+        // We still have 'next' on stack to hold on to thread we are about to run
+        lua_pop(runtime.GL, 1);
+
+        int status = lua_resume(L, nullptr, next.second);
+
+        if (status == LUA_YIELD)
+        {
+            int results = lua_gettop(L);
+
+            if (results != 0)
+            {
+                std::string error = "Top level yield cannot return any results";
+                error += "\nstacktrace:\n";
+                error += lua_debugtrace(L);
+                fprintf(stderr, error.c_str());
+                return false;
+            }
+
+            lua_pushthread(L);
+            runtime.runningThreads.push_back({Ref(L, -1), 0});
+            lua_pop(L, 1);
+            continue;
+        }
+
+        if (status != LUA_OK)
+        {
+            std::string error;
+
+            if (const char* str = lua_tostring(L, -1))
+                error = str;
+
+            error += "\nstacktrace:\n";
+            error += lua_debugtrace(L);
+
+            fprintf(stderr, "%s", error.c_str());
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static bool runFile(const char* name, lua_State* GL)
 {
     std::optional<std::string> source = readFile(name);
@@ -80,45 +202,41 @@ static bool runFile(const char* name, lua_State* GL)
     std::string chunkname = "=" + std::string(name);
 
     std::string bytecode = Luau::compile(*source, copts());
-    int status = 0;
 
-    if (luau_load(L, chunkname.c_str(), bytecode.data(), bytecode.size(), 0) == 0)
+    if (luau_load(L, chunkname.c_str(), bytecode.data(), bytecode.size(), 0) != 0)
     {
-        if (codegen)
-        {
-            Luau::CodeGen::CompilationOptions nativeOptions;
-            Luau::CodeGen::compile(L, -1, nativeOptions);
-        }
+        if (const char* str = lua_tostring(L, -1))
+            fprintf(stderr, "%s", str);
+        else
+            fprintf(stderr, "Failed to load bytecode");
 
-        setupArguments(L, program_argc, program_argv);
-        status = lua_resume(L, NULL, program_argc);
-    }
-    else
-    {
-        status = LUA_ERRSYNTAX;
+        lua_pop(GL, 1);
+        return false;
     }
 
-    if (status != 0)
+    if (codegen)
     {
-        std::string error;
-
-        if (status == LUA_YIELD)
-        {
-            error = "thread yielded unexpectedly";
-        }
-        else if (const char* str = lua_tostring(L, -1))
-        {
-            error = str;
-        }
-
-        error += "\nstacktrace:\n";
-        error += lua_debugtrace(L);
-
-        fprintf(stderr, "%s", error.c_str());
+        Luau::CodeGen::CompilationOptions nativeOptions;
+        Luau::CodeGen::compile(L, -1, nativeOptions);
     }
+
+    if (!setupArguments(L, program_argc, program_argv))
+    {
+        fprintf(stderr, "Failed to pass arguments to Luau");
+        lua_pop(GL, 1);
+        return false;
+    }
+
+    Runtime runtime;
+    runtime.GL = GL;
+
+    lua_pushthread(L);
+    runtime.runningThreads.push_back({Ref(L, -1), program_argc});
+    lua_pop(L, 1);
 
     lua_pop(GL, 1);
-    return status == 0;
+
+    return runToCompletion(runtime);
 }
 
 static void displayHelp(const char* argv0)

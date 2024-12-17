@@ -7,3 +7,6 @@
 [submodule "curl"]
 	path = extern/curl
 	url = git@github.com:curl/curl.git
+[submodule "wolfssl"]
+	path = extern/wolfssl
+	url = git@github.com:wolfSSL/wolfssl.git

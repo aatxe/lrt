@@ -1,5 +1,10 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.13)
+
+# Make sure 'set' for variables is respected by options in nested files
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 project(Queijo LANGUAGES CXX C)
 
 add_library(Queijo.Fs STATIC)
@@ -15,6 +20,12 @@ add_subdirectory(extern/luau)
 # libuv setup
 add_subdirectory(extern/libuv)
 
+# wolfssl setup
+set(BUILD_SHARED_LIBS OFF)
+set(WOLFSSL_CURL "yes")
+set(WOLFSSL_EXAMPLES "no")
+add_subdirectory(extern/wolfssl)
+
 # curl setup
 set(USE_LIBIDN2 OFF)
 set(USE_NGHTTP2 OFF)
@@ -26,9 +37,12 @@ set(BUILD_CURL_EXE OFF)
 set(BUILD_SHARED_LIBS OFF)
 set(BUILD_STATIC_LIBS ON)
 
+set(CURL_USE_WOLFSSL ON)
+set(WOLFSSL_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/extern/wolfssl/include)
+set(WOLFSSL_LIBRARY wolfssl)
+
 add_subdirectory(extern/curl)
 
-set(CURL_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/curl/include)
 #
 
 add_executable(Queijo.CLI)
@@ -41,12 +55,12 @@ include(Sources.cmake)
 target_compile_features(Queijo.Fs PUBLIC cxx_std_17)
 target_compile_features(Queijo.Net PUBLIC cxx_std_17)
 target_compile_features(Queijo.Task PUBLIC cxx_std_17)
-target_include_directories(Queijo.Fs PUBLIC Fs/include ${LIBUV_INCLUDE_DIR})
-target_include_directories(Queijo.Net PUBLIC Net/include ${LIBUV_INCLUDE_DIR})
-target_include_directories(Queijo.Task PUBLIC Task/include ${LIBUV_INCLUDE_DIR})
+target_include_directories(Queijo.Fs PUBLIC fs/include ${LIBUV_INCLUDE_DIR})
+target_include_directories(Queijo.Net PUBLIC net/include ${LIBUV_INCLUDE_DIR})
+target_include_directories(Queijo.Task PUBLIC task/include ${LIBUV_INCLUDE_DIR})
 
 target_link_libraries(Queijo.Fs PRIVATE Luau.VM uv)
-target_link_libraries(Queijo.Net PRIVATE Luau.VM uv libcurl)
+target_link_libraries(Queijo.Net PRIVATE Luau.VM uv ${WOLFSSL_LIBRARY} libcurl)
 target_link_libraries(Queijo.Task PRIVATE Luau.VM uv)
 target_link_libraries(Queijo.CLI PRIVATE Luau.CLI.lib Luau.Compiler Luau.Config Luau.CodeGen Luau.VM Queijo.Fs Queijo.Net Queijo.Task)
 

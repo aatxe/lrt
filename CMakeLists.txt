@@ -1,12 +1,19 @@
 cmake_minimum_required(VERSION 3.5)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 project(Queijo LANGUAGES CXX C)
-add_subdirectory(extern/luau)
-add_subdirectory(extern/libuv)
 
 add_library(Queijo.Fs STATIC)
 add_library(Queijo.Net STATIC)
 add_library(Queijo.Task STATIC)
+
+# luau setup
+set(LUAU_BUILD_CLI OFF)
+set(LUAU_BUILD_TESTS OFF)
+
+add_subdirectory(extern/luau)
+
+# libuv setup
+add_subdirectory(extern/libuv)
 
 # curl setup
 set(USE_LIBIDN2 OFF)

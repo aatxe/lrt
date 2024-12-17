@@ -42,7 +42,7 @@ target_compile_features(Queijo.Fs PUBLIC cxx_std_17)
 target_compile_features(Queijo.Net PUBLIC cxx_std_17)
 target_compile_features(Queijo.Task PUBLIC cxx_std_17)
 target_include_directories(Queijo.Fs PUBLIC Fs/include ${LIBUV_INCLUDE_DIR})
-target_include_directories(Queijo.Net PUBLIC Net/include ${LIBUV_INCLUDE_DIR} ${CURL_INCLUDE_DIR})
+target_include_directories(Queijo.Net PUBLIC Net/include ${LIBUV_INCLUDE_DIR})
 target_include_directories(Queijo.Task PUBLIC Task/include ${LIBUV_INCLUDE_DIR})
 
 target_link_libraries(Queijo.Fs PRIVATE Luau.VM uv)

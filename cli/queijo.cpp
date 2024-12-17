@@ -8,6 +8,8 @@
 
 #include "FileUtils.h"
 
+#include "queijo/net.h"
+
 #ifdef _WIN32
 #include <Windows.h>
 #endif
@@ -46,6 +48,8 @@ void setupState(lua_State* L)
 
     // register the builtin tables
     luaL_openlibs(L);
+
+    luaopen_net(L);
 
     static const luaL_Reg funcs[] = {
         {NULL, NULL},

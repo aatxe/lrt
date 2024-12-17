@@ -4,9 +4,8 @@
 
 #include "Luau/CodeGen.h"
 #include "Luau/Compiler.h"
+#include "Luau/FileUtils.h"
 #include "Luau/Parser.h"
-
-#include "FileUtils.h"
 
 #include "queijo/net.h"
 #include "queijo/ref.h"

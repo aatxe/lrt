@@ -24,8 +24,5 @@ target_sources(Queijo.Task PRIVATE
 )
 
 target_sources(Queijo.CLI PRIVATE
-    cli/FileUtils.h
-    cli/FileUtils.cpp
-
     cli/queijo.cpp
 )

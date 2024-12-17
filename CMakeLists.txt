@@ -1,5 +1,10 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.13)
+
+# Make sure 'set' for variables is respected by options in nested files
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 project(Queijo LANGUAGES CXX C)
 
 add_library(Queijo.Fs STATIC)

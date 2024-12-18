@@ -4,13 +4,10 @@
 
 #include "curl/curl.h"
 
-#include "uv.h"
-
 #include "lua.h"
 #include "lualib.h"
 
 #include <string>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -34,8 +31,6 @@ static std::pair<std::string, std::vector<char>> requestData(const std::string& 
     if (!curl)
         return { "failed to initialize", {} };
 
-    printf("Requested %s at %d\n", url.c_str(), clock());
-
     std::vector<char> data;
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
@@ -47,8 +42,6 @@ static std::pair<std::string, std::vector<char>> requestData(const std::string& 
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
 
     CURLcode res = curl_easy_perform(curl);
-
-    printf("Finished %s at %d\n", url.c_str(), clock());
 
     if (res != CURLE_OK)
         return { curl_easy_strerror(res), {} };
@@ -77,41 +70,8 @@ static int getAsync(lua_State* L)
     auto ref = getRefForThread(L);
     Runtime* runtime = getRuntime(L);
 
-    auto loop = uv_default_loop();
-
-    struct WorkData
-    {
-        decltype(ref) ref;
-        decltype(runtime) runtime;
-        decltype(url) url;
-    };
-
-    uv_work_t *work = new uv_work_t();
-    work->data = new WorkData{ ref, runtime, url };
-
-    uv_queue_work(loop, work, [](uv_work_t* req) {
-        WorkData& workData = *(WorkData*)req->data;
-
-        auto [error, data] = requestData(workData.url);
-
-        if (!error.empty())
-        {
-            workData.runtime->scheduleLuauError(workData.ref, "network request failed: " + error);
-        }
-        else
-        {
-            workData.runtime->scheduleLuauResume(workData.ref, [data = std::move(data)](lua_State* L) {
-                lua_pushlstring(L, data.data(), data.size());
-                return 1;
-                });
-        }
-    }, [](uv_work_t* req, int status) {
-        delete (WorkData*)req->data;
-        delete req;
-    });
-
-    // TODO: switch to libuv, add cancellations
-    /*std::thread thread = std::thread([=] {
+    // TODO: add cancellations
+    runtime->runInWorkQueue([=] {
         auto [error, data] = requestData(url);
 
         if (!error.empty())
@@ -126,8 +86,6 @@ static int getAsync(lua_State* L)
             });
         }
     });
-
-    thread.detach();*/
 
     return lua_yield(L, 0);
 }

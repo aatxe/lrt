@@ -23,6 +23,9 @@ struct Runtime
     // Resume thread with the results computed by the continuation
     void scheduleLuauResume(std::shared_ptr<Ref> ref, std::function<int(lua_State*)> cont);
 
+    // Run 'f' in a libuv work queue
+    void runInWorkQueue(std::function<void()> f);
+
     lua_State* GL = nullptr;
 
     std::mutex continuationMutex;

@@ -1,5 +1,7 @@
 #include "queijo/runtime.h"
 
+#include "uv.h"
+
 #include <assert.h>
 
 bool Runtime::hasContinuations()
@@ -33,6 +35,23 @@ void Runtime::scheduleLuauResume(std::shared_ptr<Ref> ref, std::function<int(lua
 
         int results = cont(L);
         runningThreads.push_back({ true, ref, results });
+    });
+}
+
+void Runtime::runInWorkQueue(std::function<void()> f)
+{
+    auto loop = uv_default_loop();
+
+    uv_work_t* work = new uv_work_t();
+    work->data = new decltype(f)(std::move(f));
+
+    uv_queue_work(loop, work, [](uv_work_t* req) {
+        auto task = *(decltype(f)*)req->data;
+
+        task();
+    }, [](uv_work_t* req, int status) {
+        delete (decltype(f)*)req->data;
+        delete req;
     });
 }
 

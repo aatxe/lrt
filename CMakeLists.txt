@@ -19,6 +19,8 @@ set(LUAU_BUILD_TESTS OFF)
 add_subdirectory(extern/luau)
 
 # libuv setup
+set(LIBUV_BUILD_SHARED OFF)
+set(BUILD_SHARED_LIBS OFF) # why does an option for LIBUV_BUILD_SHARED exist separately
 add_subdirectory(extern/libuv)
 
 # wolfssl setup
@@ -62,10 +64,10 @@ target_include_directories(Queijo.Fs PUBLIC fs/include ${LIBUV_INCLUDE_DIR})
 target_include_directories(Queijo.Net PUBLIC net/include ${LIBUV_INCLUDE_DIR})
 target_include_directories(Queijo.Task PUBLIC task/include ${LIBUV_INCLUDE_DIR})
 
-target_link_libraries(Queijo.Runtime PRIVATE Luau.VM uv)
-target_link_libraries(Queijo.Fs PRIVATE Queijo.Runtime Luau.VM uv)
-target_link_libraries(Queijo.Net PRIVATE Queijo.Runtime Luau.VM uv ${WOLFSSL_LIBRARY} libcurl)
-target_link_libraries(Queijo.Task PRIVATE Queijo.Runtime Luau.VM uv)
+target_link_libraries(Queijo.Runtime PRIVATE Luau.VM uv_a)
+target_link_libraries(Queijo.Fs PRIVATE Queijo.Runtime Luau.VM uv_a)
+target_link_libraries(Queijo.Net PRIVATE Queijo.Runtime Luau.VM uv_a ${WOLFSSL_LIBRARY} libcurl)
+target_link_libraries(Queijo.Task PRIVATE Queijo.Runtime Luau.VM uv_a)
 target_link_libraries(Queijo.CLI PRIVATE Luau.CLI.lib Luau.Compiler Luau.Config Luau.CodeGen Luau.VM Queijo.Runtime Queijo.Fs Queijo.Net Queijo.Task)
 
 target_compile_options(Queijo.Runtime PRIVATE ${QUEIJO_OPTIONS})

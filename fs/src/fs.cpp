@@ -43,16 +43,16 @@ int setFlags(const char* c, int* openFlags, int* modeFlags)
         }
         case '+':
         {
-            *openFlags |= O_RDWR;
+ 
             // If we have not set the truncate bit in 'w' mode,
-            if (!(*openFlags & O_TRUNC))
-            {
-                *openFlags |= O_APPEND;
-            }
-            else
+            *openFlags &= ~O_RDONLY;
+            *openFlags &= ~O_WRONLY;
+            *openFlags |= O_RDWR;
+            
+            if ((*openFlags & O_TRUNC))
             {
                 *openFlags |= O_CREAT;
-                // *modeFlags = 0700;
+                *modeFlags = 0000700 | 0000070 | 0000007;
             }
             break;
         }
@@ -80,11 +80,11 @@ void setfield(lua_State* L, const char* index, int value)
     lua_settable(L, -3);
 }
 
-void createFileHandle(lua_State* L, const FileHandle& result)
+void createFileHandle(lua_State* L, const FileHandle& toCreate)
 {
     lua_newtable(L);
-    setfield(L, "fd", result.fileDescriptor);
-    setfield(L, "err", result.errcode);
+    setfield(L, "fd", toCreate.fileDescriptor);
+    setfield(L, "err", toCreate.errcode);
 }
 
 void unpackFileHandle(lua_State* L, FileHandle& result)
@@ -111,7 +111,7 @@ int close(lua_State* L)
 }
 
 static char readBuffer[5];
-int readtostring(lua_State* L)
+int read(lua_State* L)
 {
     memset(readBuffer, 0, sizeof(readBuffer));
     // discard any extra arguments passed in
@@ -123,7 +123,6 @@ int readtostring(lua_State* L)
     int totalBytesRead = 0;
     uv_fs_t readReq;
     uv_buf_t iov = uv_buf_init(readBuffer, sizeof(readBuffer));
-    // 
     luaL_Strbuf resultBuf;
     luaL_buffinit(L, &resultBuf);
     do
@@ -137,9 +136,6 @@ int readtostring(lua_State* L)
         {
             printf("Error reading: %s. Closing file.\n", uv_err_name(numBytesRead));
             memset(readBuffer, 0, sizeof(readBuffer));
-            
-            uv_fs_t closeReq;
-            uv_fs_close(uv_default_loop(), &closeReq, file.fileDescriptor, nullptr);
             return 0;
         }
         // concatenate the read string into the result buffer
@@ -152,15 +148,13 @@ int readtostring(lua_State* L)
 
     // Clean up the scratch space
     memset(readBuffer, 0, sizeof(readBuffer));
-    uv_fs_t closeReq;
-    uv_fs_close(uv_default_loop(), &closeReq, file.fileDescriptor, nullptr);
     return 1;
 }
 
 
 static char writeBuffer[4096];
 
-int writestringtofile(lua_State* L)
+int write(lua_State* L)
 {
     // Reset the write buffer
     int wbSize = sizeof(writeBuffer);
@@ -191,8 +185,6 @@ int writestringtofile(lua_State* L)
             // Error case.
             printf("Error writing to file with descriptor %zu\n", file.fileDescriptor);
             memset(writeBuffer, 0, sizeof(writeBuffer));
-            uv_fs_t closeReq;
-            uv_fs_close(uv_default_loop(), &closeReq, file.fileDescriptor, nullptr);
             return 0;
         }
         
@@ -203,8 +195,29 @@ int writestringtofile(lua_State* L)
 
     return 0;
 }
+// Returns 0 on error, 1 otherwise
+int openHelper(lua_State* L, const char* path, const char* mode, int* openFlags, FileHandle& outHandle)
+{
+    int modeFlags = 0x0000;
 
-int openfile(lua_State* L)
+    if (setFlags(mode, openFlags, &modeFlags))
+    {
+        return 0;
+    }
+    uv_fs_t openReq;
+    int errcode = uv_fs_open(uv_default_loop(), &openReq, path, *openFlags, modeFlags, nullptr);
+    if (openReq.result < 0)
+    {
+        printf("Error opening file %s\n", path);
+        return 0;
+    }
+    FileHandle handle{openReq.result, errcode};
+    outHandle.fileDescriptor = openReq.result;
+    outHandle.errcode = errcode;
+    return 1;
+}
+
+int open(lua_State* L)
 {
     int nArgs = lua_gettop(L);
     const char* path = luaL_checkstring(L, 1);
@@ -216,32 +229,127 @@ int openfile(lua_State* L)
         printf("Error: no file supplied\n");
         return 0;
     }
-    else if (nArgs < 2)
+    
+    if (nArgs < 2)
     {
-        // by default, if no argument is specified,
         openFlags = O_RDONLY;
     }
-    else
+    
+    const char* mode = luaL_checkstring(L, 2);
+    FileHandle result;
+    if (openHelper(L, path, mode, &openFlags, result))
     {
-        const char* mode = luaL_checkstring(L, 2);
-        int modeLen = strlen(mode);
-        if (setFlags(mode, &openFlags, &modeFlags))
-        {
-            return 0;
-        }
-
-        uv_fs_t openReq;
-        int errcode = uv_fs_open(uv_default_loop(), &openReq, path, openFlags, modeFlags, nullptr);
-        if (openReq.result < 0)
-        {
-            printf("Error opening file %s\n", path);
-            return 0;
-        }
-
-        createFileHandle(L, FileHandle{openReq.result, errcode});
+        createFileHandle(L, result);
         return 1;
     }
 
+    return 0;
+}
+
+void cleanup(char* buffer, int size, const FileHandle& handle)
+{
+    memset(buffer, 0, size);
+    uv_fs_t closeReq;
+    uv_fs_close(uv_default_loop(), &closeReq, handle.fileDescriptor, nullptr);
+}
+   
+
+int readfiletostring(lua_State* L)
+{
+    const char* path = luaL_checkstring(L, 1);
+    const char openMode[] = "r";
+    int openFlags = 0x0000;
+    FileHandle handle;
+    if (!openHelper(L, path, openMode, &openFlags, handle))
+    {
+        printf("Error opening file for reading at %s\n", path);
+        return 0;
+    }
+
+    memset(readBuffer, 0, sizeof(readBuffer));
+    // discard any extra arguments passed in
+    lua_settop(L, 1);
+
+    int numBytesRead = 0;
+    int totalBytesRead = 0;
+    uv_fs_t readReq;
+    uv_buf_t iov = uv_buf_init(readBuffer, sizeof(readBuffer));
+    luaL_Strbuf resultBuf;
+    luaL_buffinit(L, &resultBuf);
+    do
+    {
+        uv_fs_read(uv_default_loop(), &readReq, handle.fileDescriptor, &iov, 1, -1, nullptr);
+
+        numBytesRead = readReq.result;
+        totalBytesRead += numBytesRead;
+
+        if (numBytesRead < 0)
+        {
+            printf("Error reading: %s. Closing file.\n", uv_err_name(numBytesRead));
+            cleanup(readBuffer, sizeof(readBuffer), handle);
+            return 0;
+        }
+        // concatenate the read string into the result buffer
+        if (numBytesRead > 0)
+            luaL_addlstring(&resultBuf, readBuffer, numBytesRead);
+
+    } while (numBytesRead > 0);
+
+    luaL_pushresult(&resultBuf);
+
+    // Clean up the scratch space
+    cleanup(readBuffer, sizeof(readBuffer), handle);
+    return 1;
+}
+
+int writestringtofile(lua_State* L)
+{
+
+    const char* path = luaL_checkstring(L, 1);
+    const char openMode[] = "w+";
+    int openFlags = 0x0000;
+    FileHandle handle;
+    if (!openHelper(L, path, openMode, &openFlags, handle))
+    {
+        printf("Error opening file for reading at %s\n", path);
+        return 0;
+    }
+
+    int wbSize = sizeof(writeBuffer);
+    memset(writeBuffer, 0, sizeof(writeBuffer));
+    const char* stringToWrite = luaL_checkstring(L, 2);
+
+    // Set up the buffer to write
+    int numBytesLeftToWrite = strlen(stringToWrite);
+    uv_buf_t iov;
+    do
+    {
+        int offset = 0;
+        // copy stringToWrite[0], numBytesLeftToWrite into write buffer
+
+        int sizeToWrite = min(wbSize, numBytesLeftToWrite);
+        memcpy(writeBuffer, stringToWrite + offset, sizeToWrite);
+        iov = uv_buf_init(writeBuffer, numBytesLeftToWrite);
+
+        uv_fs_t writeReq;
+        int bytesWritten = 0;
+        uv_fs_write(uv_default_loop(), &writeReq, handle.fileDescriptor, &iov, 1, -1, nullptr);
+        bytesWritten = writeReq.result;
+
+        if (bytesWritten < 0)
+        {
+            // Error case.
+            printf("Error writing to file with descriptor %zu\n", handle.fileDescriptor);
+            cleanup(writeBuffer, sizeof(writeBuffer), handle);
+            return 0;
+        }
+        
+        
+        offset += bytesWritten;
+        numBytesLeftToWrite -= bytesWritten;
+    } while (numBytesLeftToWrite > 0);
+
+    cleanup(writeBuffer, sizeof(writeBuffer), handle);
     return 0;
 }
 

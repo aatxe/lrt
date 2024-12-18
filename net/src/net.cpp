@@ -1,11 +1,19 @@
 #include "queijo/net.h"
 
+#include "queijo/runtime.h"
+
 #include "curl/curl.h"
 
 #include "lua.h"
 #include "lualib.h"
 
+#include <string>
+#include <thread>
+#include <utility>
 #include <vector>
+
+namespace net
+{
 
 static size_t writeFunction(void* contents, size_t size, size_t nmemb, void* context)
 {
@@ -17,18 +25,16 @@ static size_t writeFunction(void* contents, size_t size, size_t nmemb, void* con
     return fullsize;
 }
 
-static int net_get(lua_State* L)
+static std::pair<std::string, std::vector<char>> requestData(const std::string& url)
 {
-    const char* url = luaL_checkstring(L, 1);
-
     CURL* curl = curl_easy_init();
 
     if (!curl)
-        luaL_error(L, "failed to initialize the request");
+        return { "failed to initialize", {} };
 
     std::vector<char> data;
 
-    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeFunction);
@@ -37,20 +43,69 @@ static int net_get(lua_State* L)
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
 
     CURLcode res = curl_easy_perform(curl);
-    
+
     if (res != CURLE_OK)
-        luaL_error(L, "network request failed: %s\n", curl_easy_strerror(res));
+        return { curl_easy_strerror(res), {} };
 
     curl_easy_cleanup(curl);
+    return { "", data };
+}
+
+static int get(lua_State* L)
+{
+    std::string url = luaL_checkstring(L, 1);
+
+    auto [error, data] = requestData(url);
+
+    if (!error.empty())
+        luaL_error(L, "network request failed: %s", error.c_str());
 
     lua_pushlstring(L, data.data(), data.size());
     return 1;
 }
 
-static const luaL_Reg netlib[] = {
-    {"get", net_get},
+static int getAsync(lua_State* L)
+{
+    std::string url = luaL_checkstring(L, 1);
+
+    lua_pushthread(L);
+    int refId = lua_ref(L, -1);
+    lua_pop(L, 1);
+
+    Runtime* runtime = getRuntime(L);
+
+    // TODO: switch to libuv, add cancellations
+    std::thread thread = std::thread([=] {
+        auto [error, data] = requestData(url);
+
+        runtime->scheduleLuauContinuation([error = std::move(error), data = std::move(data), refId](lua_State* GL) {
+            lua_getref(GL, refId);
+            lua_unref(GL, refId);
+            lua_State* L = lua_tothread(GL, -1);
+
+            if (!error.empty())
+            {
+                std::string formatted = "network request failed: " + error;
+                lua_pushlstring(L, formatted.data(), formatted.size());
+                return false;
+            }
+
+            lua_pushlstring(L, data.data(), data.size());
+            return true;
+        });
+    });
+
+    thread.detach();
+
+    return lua_yield(L, 0);
+}
+
+static const luaL_Reg lib[] = {
+    {"get", get},
+    {"getAsync", getAsync},
     {nullptr, nullptr},
 };
+}
 
 struct CurlHolder
 {
@@ -75,7 +130,7 @@ int luaopen_net(lua_State* L)
 {
     globalCurlInit();
 
-    luaL_register(L, "net", netlib);
+    luaL_register(L, "net", net::lib);
 
     return 1;
 }

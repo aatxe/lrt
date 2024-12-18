@@ -6,6 +6,7 @@
 #include "Luau/Compiler.h"
 #include "Luau/FileUtils.h"
 #include "Luau/Parser.h"
+#include "Luau/Require.h"
 
 #include "queijo/net.h"
 
@@ -72,15 +73,167 @@ static Luau::CompileOptions copts()
     return result;
 }
 
-void load_queijo_runtime(lua_State* L, const luaL_Reg* libs)
+static int finishrequire(lua_State* L)
 {
-    const luaL_Reg* lib = libs;
-    for (; lib->func; lib++)
+    if (lua_isstring(L, -1))
+        lua_error(L);
+
+    return 1;
+}
+
+struct RuntimeRequireContext : public RequireResolver::RequireContext
+{
+    // In the context of the REPL, source is the calling context's chunkname.
+    //
+    // These chunknames have certain prefixes that indicate context. These
+    // are used when displaying debug information (see luaO_chunkid).
+    //
+    // Generally, the '@' prefix is used for filepaths, and the '=' prefix is
+    // used for custom chunknames, such as =stdin.
+    explicit RuntimeRequireContext(std::string source)
+        : source(std::move(source))
     {
-        lua_pushcfunction(L, lib->func, NULL);
-        lua_pushstring(L, lib->name);
-        lua_call(L, 1, 0);
     }
+
+    std::string getPath() override
+    {
+        return source.substr(1);
+    }
+
+    bool isRequireAllowed() override
+    {
+        return true;
+    }
+
+    bool isStdin() override
+    {
+        return source == "=stdin";
+    }
+
+    std::string createNewIdentifer(const std::string& path) override
+    {
+        return "@" + path;
+    }
+
+private:
+    std::string source;
+};
+
+struct RuntimeCacheManager : public RequireResolver::CacheManager
+{
+    explicit RuntimeCacheManager(lua_State* L)
+        : L(L)
+    {
+    }
+
+    bool isCached(const std::string& path) override
+    {
+        luaL_findtable(L, LUA_REGISTRYINDEX, "_MODULES", 1);
+        lua_getfield(L, -1, path.c_str());
+        bool cached = !lua_isnil(L, -1);
+        lua_pop(L, 2);
+
+        if (cached)
+            cacheKey = path;
+
+        return cached;
+    }
+
+    std::string cacheKey;
+
+private:
+    lua_State* L;
+};
+
+struct RuntimeErrorHandler : RequireResolver::ErrorHandler
+{
+    explicit RuntimeErrorHandler(lua_State* L)
+        : L(L)
+    {
+    }
+
+    void reportError(const std::string message) override
+    {
+        luaL_errorL(L, "%s", message.c_str());
+    }
+
+private:
+    lua_State* L;
+};
+
+static int lua_require(lua_State* L)
+{
+    std::string name = luaL_checkstring(L, 1);
+
+    RequireResolver::ResolvedRequire resolvedRequire;
+    {
+        lua_Debug ar;
+        lua_getinfo(L, 1, "s", &ar);
+
+        RuntimeRequireContext requireContext{ar.source};
+        RuntimeCacheManager cacheManager{L};
+        RuntimeErrorHandler errorHandler{L};
+
+        RequireResolver resolver(std::move(name), requireContext, cacheManager, errorHandler);
+
+        resolvedRequire = resolver.resolveRequire(
+            [L, &cacheKey = cacheManager.cacheKey](const RequireResolver::ModuleStatus status)
+            {
+                lua_getfield(L, LUA_REGISTRYINDEX, "_MODULES");
+                if (status == RequireResolver::ModuleStatus::Cached)
+                    lua_getfield(L, -1, cacheKey.c_str());
+            }
+        );
+    }
+
+    if (resolvedRequire.status == RequireResolver::ModuleStatus::Cached)
+        return finishrequire(L);
+
+    // module needs to run in a new thread, isolated from the rest
+    // note: we create ML on main thread so that it doesn't inherit environment of L
+    lua_State* GL = lua_mainthread(L);
+    lua_State* ML = lua_newthread(GL);
+    lua_xmove(GL, L, 1);
+
+    // new thread needs to have the globals sandboxed
+    luaL_sandboxthread(ML);
+
+    // now we can compile & run module on the new thread
+    std::string bytecode = Luau::compile(resolvedRequire.sourceCode, copts());
+    if (luau_load(ML, resolvedRequire.identifier.c_str(), bytecode.data(), bytecode.size(), 0) == 0)
+    {
+        if (codegen)
+        {
+            Luau::CodeGen::CompilationOptions nativeOptions;
+            Luau::CodeGen::compile(ML, -1, nativeOptions);
+        }
+
+        int status = lua_resume(ML, L, 0);
+
+        if (status == 0)
+        {
+            if (lua_gettop(ML) == 0)
+                lua_pushstring(ML, "module must return a value");
+            else if (!lua_istable(ML, -1) && !lua_isfunction(ML, -1))
+                lua_pushstring(ML, "module must return a table or function");
+        }
+        else if (status == LUA_YIELD)
+        {
+            lua_pushstring(ML, "module can not yield");
+        }
+        else if (!lua_isstring(ML, -1))
+        {
+            lua_pushstring(ML, "unknown error while running module");
+        }
+    }
+
+    // there's now a return value on top of ML; L stack: _MODULES ML
+    lua_xmove(ML, L, 1);
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -4, resolvedRequire.absolutePath.c_str());
+
+    // L stack: _MODULES ML result
+    return finishrequire(L);
 }
 
 void setupState(lua_State* L)
@@ -96,10 +249,11 @@ void setupState(lua_State* L)
     lua_pop(L, 1);
 
     static const luaL_Reg funcs[] = {
-        {NULL, NULL},
+        {"require", lua_require},
+        {nullptr, nullptr},
     };
 
-    load_queijo_runtime(L, funcs);
+    luaL_register(L, "_G", funcs);
 
     luaL_sandbox(L);
 }

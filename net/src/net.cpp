@@ -81,7 +81,7 @@ static int getAsync(lua_State* L)
         }
         else
         {
-            runtime->scheduleLuauResume(ref, [data](lua_State* L) {
+            runtime->scheduleLuauResume(ref, [data = std::move(data)](lua_State* L) {
                 lua_pushlstring(L, data.data(), data.size());
                 return 1;
             });

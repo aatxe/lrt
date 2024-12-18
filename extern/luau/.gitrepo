@@ -1,0 +1,12 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/ingydotnet/git-subrepo#readme
+;
+[subrepo]
+	remote = git@github.com:luau-lang/luau.git
+	branch = master
+	commit = 8f94786ceb5e34ad50a1ddcfae26c4dce862bdb7
+	parent = f42c5f620ff9d08787090e772e3a7b15dc9ae655
+	method = merge
+	cmdver = 0.4.9

@@ -26,8 +26,6 @@ static bool codegen = false;
 static int program_argc = 0;
 static char** program_argv = nullptr;
 
-static Runtime runtime;
-
 static Luau::CompileOptions copts()
 {
     Luau::CompileOptions result = {};
@@ -127,16 +125,11 @@ private:
     lua_State* L;
 };
 
-static int lua_require(lua_State* L)
+static int lua_requireInternal(lua_State* L, std::string name, std::string context)
 {
-    std::string name = luaL_checkstring(L, 1);
-
     RequireResolver::ResolvedRequire resolvedRequire;
     {
-        lua_Debug ar;
-        lua_getinfo(L, 1, "s", &ar);
-
-        RuntimeRequireContext requireContext{ar.source};
+        RuntimeRequireContext requireContext{context};
         RuntimeCacheManager cacheManager{L};
         RuntimeErrorHandler errorHandler{L};
 
@@ -202,8 +195,127 @@ static int lua_require(lua_State* L)
     return finishrequire(L);
 }
 
-void setupState(Runtime& runtime, lua_State* L)
+static int lua_require(lua_State* L)
 {
+    std::string name = luaL_checkstring(L, 1);
+
+    lua_Debug ar;
+    lua_getinfo(L, 1, "s", &ar);
+
+    return lua_requireInternal(L, name, ar.source);
+}
+
+static int lua_require2(lua_State* L)
+{
+    std::string name = luaL_checkstring(L, 1);
+    std::string source = luaL_checkstring(L, 2);
+
+    return lua_requireInternal(L, name, source);
+}
+
+lua_State* setupState(Runtime& runtime);
+
+struct TargetFunction
+{
+    std::shared_ptr<Runtime> runtime;
+    std::shared_ptr<Ref> func;
+};
+
+constexpr int kTargetFunctionTag = 1;
+
+static int crossVmMarshall(lua_State* L)
+{
+    TargetFunction* target = (TargetFunction*)lua_touserdatatagged(L, lua_upvalueindex(1), kTargetFunctionTag);
+
+
+
+    return 0;
+}
+
+static int crossVmMarshallCont(lua_State* L, int status)
+{
+    return 0;
+}
+
+static int lua_spawn(lua_State* L)
+{
+    const char* file = luaL_checkstring(L, 1);
+
+    Runtime* runtime = getRuntime(L);
+
+    auto child = std::make_shared<Runtime>();
+
+    setupState(*child);
+
+    lua_Debug ar;
+    lua_getinfo(L, 1, "s", &ar);
+
+    // Require the target module
+    lua_pushcclosure(child->GL, lua_require2, "require", 0);
+    lua_pushstring(child->GL, file);
+    lua_pushstring(child->GL, ar.source);
+    int status = lua_pcall(child->GL, 2, 1, 0);
+
+    if (status == LUA_ERRRUN && lua_type(child->GL, -1) == LUA_TSTRING)
+    {
+        size_t len = 0;
+        const char* str = lua_tolstring(child->GL, -1, &len);
+
+        std::string error = std::string(str, len);
+        error += "\nstacktrace:\n";
+        error += lua_debugtrace(child->GL);
+        luaL_error(L, "Failed to spawn, target module error: %s", error.c_str());
+    }
+
+    if (status != LUA_OK)
+        luaL_error(L, "Failed to require %s", file);
+
+    if (lua_type(child->GL, -1) != LUA_TTABLE)
+        luaL_error(L, "Module %s did not return a table", file);
+
+    lua_setuserdatadtor(L, kTargetFunctionTag, [](lua_State* L, void* userdata) {
+        ((TargetFunction*)userdata)->~TargetFunction();
+    });
+
+    // For each function in the child VM return table, create a wrapper function in main VM which will marshall a call
+    lua_createtable(L, 0, 0);
+
+    for (int i = 0; i = lua_rawiter(child->GL, -1, i), i >= 0;)
+    {
+        if (lua_type(child->GL, -2) != LUA_TSTRING || lua_type(child->GL, -1) != LUA_TFUNCTION)
+        {
+            lua_pop(child->GL, 2);
+            continue;
+        }
+
+        size_t length = 0;
+        const char* name = lua_tolstring(child->GL, -2, &length);
+
+        auto func = std::make_shared<Ref>(child->GL, -1);
+
+        TargetFunction* target = new (lua_newuserdatatagged(L, sizeof(TargetFunction), kTargetFunctionTag)) TargetFunction();
+        
+        target->runtime = child;
+        target->func = func;
+
+        lua_pushcclosurek(L, crossVmMarshall, name, 1, crossVmMarshallCont);
+        lua_setfield(L, -2, name);
+
+        lua_pop(child->GL, 2);
+    }
+
+    // TODO: we might not actually need to explicitly store child runtimes if they are only called in marshalling
+    runtime->childRuntimes.push_back(child);
+
+    return 1;
+}
+
+lua_State* setupState(Runtime& runtime)
+{
+    runtime.globalState.reset(luaL_newstate());
+
+    lua_State* L = runtime.globalState.get();
+
     runtime.GL = L;
 
     lua_setthreaddata(L, &runtime);
@@ -216,18 +328,23 @@ void setupState(Runtime& runtime, lua_State* L)
     luaL_openlibs(L);
 
     luaopen_net(L);
-    luaopen_fs(L);
+    lua_pop(L, 1);
 
+    luaopen_fs(L);
     lua_pop(L, 1);
 
     static const luaL_Reg funcs[] = {
         {"require", lua_require},
+        {"spawn", lua_spawn},
         {nullptr, nullptr},
     };
 
     luaL_register(L, "_G", funcs);
+    lua_pop(L, 1);
 
     luaL_sandbox(L);
+
+    return L;
 }
 
 bool setupArguments(lua_State* L, int argc, char** argv)
@@ -237,83 +354,6 @@ bool setupArguments(lua_State* L, int argc, char** argv)
 
     for (int i = 0; i < argc; ++i)
         lua_pushstring(L, argv[i]);
-
-    return true;
-}
-
-static bool runToCompletion(Runtime& runtime)
-{
-    // While there is some C++ or Luau code left to run
-    while (!runtime.runningThreads.empty() || runtime.hasContinuations())
-    {
-        // Complete all C++ continuations
-        std::vector<std::function<void()>> continuations;
-
-        {
-            std::unique_lock lock(runtime.continuationMutex);
-            continuations = std::move(runtime.continuations);
-            runtime.continuations.clear();
-        }
-
-        for (auto&& continuation : continuations)
-            continuation();
-
-        if (runtime.runningThreads.empty())
-            continue;
-
-        auto next = std::move(runtime.runningThreads.front());
-        runtime.runningThreads.erase(runtime.runningThreads.begin());
-
-        next.ref->push(runtime.GL);
-        lua_State* L = lua_tothread(runtime.GL, -1);
-
-        if (L == nullptr)
-        {
-            fprintf(stderr, "Cannot resume a non-thread reference");
-            return false;
-        }
-
-        // We still have 'next' on stack to hold on to thread we are about to run
-        lua_pop(runtime.GL, 1);
-
-        int status = LUA_OK;
-
-        if (!next.success)
-            status = lua_resumeerror(L, nullptr);
-        else
-            status = lua_resume(L, nullptr, next.argumentCount);
-
-        if (status == LUA_YIELD)
-        {
-            int results = lua_gettop(L);
-
-            if (results != 0)
-            {
-                std::string error = "Top level yield cannot return any results";
-                error += "\nstacktrace:\n";
-                error += lua_debugtrace(L);
-                fprintf(stderr, "%s", error.c_str());
-                return false;
-            }
-
-            runtime.runningThreads.push_back({true, getRefForThread(L), 0});
-            continue;
-        }
-
-        if (status != LUA_OK)
-        {
-            std::string error;
-
-            if (const char* str = lua_tostring(L, -1))
-                error = str;
-
-            error += "\nstacktrace:\n";
-            error += lua_debugtrace(L);
-
-            fprintf(stderr, "%s", error.c_str());
-            return false;
-        }
-    }
 
     return true;
 }
@@ -366,7 +406,7 @@ static bool runFile(Runtime& runtime, const char* name, lua_State* GL)
 
     lua_pop(GL, 1);
 
-    return runToCompletion(runtime);
+    return runtime.runToCompletion();
 }
 
 static void displayHelp(const char* argv0)
@@ -428,12 +468,9 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    std::unique_ptr<lua_State, void (*)(lua_State*)> globalState(luaL_newstate(), lua_close);
-    lua_State* L = globalState.get();
-
     Runtime runtime;
 
-    setupState(runtime, L);
+    lua_State* L = setupState(runtime);
 
     int failed = 0;
 

@@ -107,7 +107,7 @@ static bool runToCompletion(Runtime& runtime)
         auto next = std::move(runtime.runningThreads.front());
         runtime.runningThreads.erase(runtime.runningThreads.begin());
 
-        next.ref.push(runtime.GL);
+        next.ref->push(runtime.GL);
         lua_State* L = lua_tothread(runtime.GL, -1);
 
         if (L == nullptr)
@@ -119,7 +119,12 @@ static bool runToCompletion(Runtime& runtime)
         // We still have 'next' on stack to hold on to thread we are about to run
         lua_pop(runtime.GL, 1);
 
-        int status = lua_resume(L, nullptr, next.argumentCount);
+        int status = LUA_OK;
+
+        if (!next.success)
+            status = lua_resumeerror(L, nullptr);
+        else
+            status = lua_resume(L, nullptr, next.argumentCount);
 
         if (status == LUA_YIELD)
         {

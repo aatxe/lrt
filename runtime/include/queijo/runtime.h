@@ -9,14 +9,19 @@
 struct ThreadToContinue
 {
     bool success = false;
-    Ref ref;
+    std::shared_ptr<Ref> ref;
     int argumentCount = 0;
 };
 
 struct Runtime
 {
     bool hasContinuations();
-    void scheduleLuauContinuation(std::function<bool(lua_State*)> cb);
+
+    // Resume thread with the specified error
+    void scheduleLuauError(std::shared_ptr<Ref> ref, std::string error);
+
+    // Resume thread with the results computed by the continuation
+    void scheduleLuauResume(std::shared_ptr<Ref> ref, std::function<int(lua_State*)> cont);
 
     lua_State* GL = nullptr;
 

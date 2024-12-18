@@ -68,31 +68,24 @@ static int getAsync(lua_State* L)
 {
     std::string url = luaL_checkstring(L, 1);
 
-    lua_pushthread(L);
-    int refId = lua_ref(L, -1);
-    lua_pop(L, 1);
-
+    auto ref = getRefForThread(L);
     Runtime* runtime = getRuntime(L);
 
     // TODO: switch to libuv, add cancellations
     std::thread thread = std::thread([=] {
         auto [error, data] = requestData(url);
 
-        runtime->scheduleLuauContinuation([error = std::move(error), data = std::move(data), refId](lua_State* GL) {
-            lua_getref(GL, refId);
-            lua_unref(GL, refId);
-            lua_State* L = lua_tothread(GL, -1);
-
-            if (!error.empty())
-            {
-                std::string formatted = "network request failed: " + error;
-                lua_pushlstring(L, formatted.data(), formatted.size());
-                return false;
-            }
-
-            lua_pushlstring(L, data.data(), data.size());
-            return true;
-        });
+        if (!error.empty())
+        {
+            runtime->scheduleLuauError(ref, "network request failed: " + error);
+        }
+        else
+        {
+            runtime->scheduleLuauResume(ref, [data](lua_State* L) {
+                lua_pushlstring(L, data.data(), data.size());
+                return 1;
+            });
+        }
     });
 
     thread.detach();

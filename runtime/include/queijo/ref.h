@@ -2,6 +2,7 @@
 
 #include "lua.h"
 
+#include <memory>
 #include <utility>
 
 // Only interact with Ref from main thread! (one day it might even get enforced)
@@ -16,17 +17,8 @@ struct Ref
     {
         lua_unref(GL, refId);
     }
-    Ref(Ref&& rhs) noexcept
-    {
-        std::swap(GL, rhs.GL);
-        std::swap(refId, rhs.refId);
-    }
-    Ref& operator=(Ref&& rhs) noexcept
-    {
-        std::swap(GL, rhs.GL);
-        std::swap(refId, rhs.refId);
-        return *this;
-    }
+    Ref(Ref&& rhs) noexcept = delete;
+    Ref& operator=(Ref&& rhs) noexcept = delete;
     Ref(const Ref& rhs) = delete;
     Ref& operator=(const Ref& rhs) = delete;
 
@@ -39,10 +31,10 @@ struct Ref
     int refId = 0;
 };
 
-inline Ref getRefForThread(lua_State* L)
+inline std::shared_ptr<Ref> getRefForThread(lua_State* L)
 {
     lua_pushthread(L);
-    Ref ref(L, -1);
+    std::shared_ptr<Ref> ref = std::make_shared<Ref>(L, -1);
     lua_pop(L, 1);
     return ref;
 }

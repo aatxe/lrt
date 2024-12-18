@@ -4,7 +4,7 @@ export type Task = {
     co: thread
 }
 
-local function task(f, ...): Task
+local function create(f, ...): Task
     local data: Task = {}
 
     data.co = coroutine.create(function(...)
@@ -60,7 +60,7 @@ local function awaitAll(...: Task)
 end
 
 return {
-    task = task,
+    create = create,
     await = await,
     awaitAll = awaitAll,
 }

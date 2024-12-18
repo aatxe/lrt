@@ -1,16 +1,16 @@
 local task = require("./task")
 
-local t = task.task(function()
+local t = task.create(function()
     return net.getAsync("https://en.wikipedia.org/")
 end)
 
 print(task.await(t))
 
-print(task.await(task.task(net.getAsync, "https://en.wikipedia.org/")))
+print(task.await(task.create(net.getAsync, "https://en.wikipedia.org/")))
 
-local t1 = task.task(net.getAsync, "https://en.wikipedia.org/")
-local t2 = task.task(net.getAsync, "https://www.google.com/")
-local t3 = task.task(net.getAsync, "https://www.bing.com/")
+local t1 = task.create(net.getAsync, "https://en.wikipedia.org/")
+local t2 = task.create(net.getAsync, "https://www.google.com/")
+local t3 = task.create(net.getAsync, "https://www.bing.com/")
 
 -- print(task.awaitAll(t1, t2, t3))
 

@@ -1,9 +1,12 @@
 #include "queijo/fs.h"
 #include "lua.h"
 #include "lualib.h"
+#include "queijo/ref.h"
+#include "queijo/runtime.h"
 #include "uv.h"
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #ifdef _WIN32
 #include <direct.h>
 #else
@@ -43,12 +46,12 @@ int setFlags(const char* c, int* openFlags, int* modeFlags)
         }
         case '+':
         {
- 
+
             // If we have not set the truncate bit in 'w' mode,
             *openFlags &= ~O_RDONLY;
             *openFlags &= ~O_WRONLY;
             *openFlags |= O_RDWR;
-            
+
             if ((*openFlags & O_TRUNC))
             {
                 *openFlags |= O_CREAT;
@@ -187,8 +190,8 @@ int write(lua_State* L)
             memset(writeBuffer, 0, sizeof(writeBuffer));
             return 0;
         }
-        
-        
+
+
         offset += bytesWritten;
         numBytesLeftToWrite -= bytesWritten;
     } while (numBytesLeftToWrite > 0);
@@ -229,12 +232,12 @@ int open(lua_State* L)
         printf("Error: no file supplied\n");
         return 0;
     }
-    
+
     if (nArgs < 2)
     {
         openFlags = O_RDONLY;
     }
-    
+
     const char* mode = luaL_checkstring(L, 2);
     FileHandle result;
     if (openHelper(L, path, mode, &openFlags, result))
@@ -252,7 +255,7 @@ void cleanup(char* buffer, int size, const FileHandle& handle)
     uv_fs_t closeReq;
     uv_fs_close(uv_default_loop(), &closeReq, handle.fileDescriptor, nullptr);
 }
-   
+
 
 int readfiletostring(lua_State* L)
 {
@@ -343,8 +346,8 @@ int writestringtofile(lua_State* L)
             cleanup(writeBuffer, sizeof(writeBuffer), handle);
             return 0;
         }
-        
-        
+
+
         offset += bytesWritten;
         numBytesLeftToWrite -= bytesWritten;
     } while (numBytesLeftToWrite > 0);
@@ -353,10 +356,118 @@ int writestringtofile(lua_State* L)
     return 0;
 }
 
+struct ResumeCaptureInformation
+{
+    explicit ResumeCaptureInformation(Runtime* rt, std::shared_ptr<Ref> ref)
+        : runtime(rt)
+        , ref(std::move(ref))
+    {
+    }
+    Runtime* runtime = nullptr;
+    std::shared_ptr<Ref> ref = nullptr;
+};
+
+uv_fs_t* createRequest(lua_State* L)
+{
+    uv_fs_t* req = new uv_fs_t();
+    req->data = new ResumeCaptureInformation(getRuntime(L), std::move(getRefForThread(L)));
+    return req;
+}
+
+ResumeCaptureInformation* getResumeInformation(uv_fs_t* req)
+{
+    return reinterpret_cast<ResumeCaptureInformation*>(req->data);
+}
+
+int readasync(lua_State* L)
+{
+    const char* path = luaL_checkstring(L, 1);
+    Runtime* runtime = getRuntime(L);
+    std::shared_ptr<Ref> ref = getRefForThread(L);
+
+    uv_fs_t* openReq = createRequest(L);
+    uv_fs_open(
+        uv_default_loop(),
+        openReq,
+        path,
+        O_RDONLY,
+        0,
+        [](uv_fs_t* req)
+        {
+            ResumeCaptureInformation* info = getResumeInformation(req);
+            int fd = req->result;
+
+            if (fd < 0)
+            {
+                info->runtime->scheduleLuauError(info->ref, "Error opening file");
+                uv_fs_t closeReq;
+                uv_fs_close(uv_default_loop(), &closeReq, fd, nullptr);
+                uv_fs_req_cleanup(req);
+                delete (ResumeCaptureInformation*)req->data;
+                delete req;
+                return;
+            }
+
+            // Allocate the destination buffer for reading
+            char readBuffer[1024];
+            memset(readBuffer, 0, sizeof(readBuffer));
+            uv_buf_t iov = uv_buf_init(readBuffer, sizeof(readBuffer));
+            // Read data
+            int numBytesRead = 0;
+            int totalBytesRead = 0;
+            uv_fs_t readReq;
+            // Output data
+            std::vector<char> resultData;
+
+            do
+            {
+                uv_fs_read(uv_default_loop(), &readReq, fd, &iov, 1, -1, nullptr);
+                numBytesRead = readReq.result;
+                totalBytesRead += numBytesRead;
+
+                if (numBytesRead < 0)
+                {
+                    uv_fs_t closeReq;
+                    uv_fs_close(uv_default_loop(), &closeReq, fd, nullptr);
+                    // Schedule error;
+                    // Also, we should free the original request. We don't have to do this for the read req since it's sycnrhonous
+                    info->runtime->scheduleLuauError(info->ref, "Error reading file");
+                    uv_fs_req_cleanup(req);
+                    delete (ResumeCaptureInformation*)req->data;
+                    delete req;
+                    return;
+                }
+
+
+                for (int i = 0; i < numBytesRead; i++)
+                    resultData.push_back(readBuffer[i]);
+
+            } while (numBytesRead > 0);
+
+            // Push the result buffer onto the stack
+            info->runtime->scheduleLuauResume(
+                info->ref,
+                [data = std::move(resultData)](lua_State* L) 
+                {
+                    lua_pushlstring(L, data.data(), data.size());
+                    return 1;
+                }
+            );
+
+            uv_fs_t closeReq;
+            uv_fs_close(uv_default_loop(), &closeReq, fd, nullptr);
+            // free the read buffer as well as the resume information and the request
+            delete (ResumeCaptureInformation*)req->data;
+            delete req;
+            return;
+        }
+    );
+
+    return lua_yield(L, 0);
+}
+
 int luaopen_fs(lua_State* L)
 {
-    // TODO: Figure out how to make the filesystem do async io
-    // uv_run(uv_default_loop(), UV_RUN_DEFAULT);
     luaL_register(L, "fs", fslib);
     return 1;
 }

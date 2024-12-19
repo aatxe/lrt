@@ -35,6 +35,8 @@ bool Runtime::runToCompletion()
     // While there is some C++ or Luau code left to run
     while (!runningThreads.empty() || hasContinuations())
     {
+        uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+
         // Complete all C++ continuations
         std::vector<std::function<void()>> copy;
 

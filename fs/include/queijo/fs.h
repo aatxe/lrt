@@ -23,7 +23,8 @@ int readfiletostring(lua_State* L);
 /* writes a st */
 int writestringtofile(lua_State* L);
 
-
+/* Reads a file without blocking */
+int readasync(lua_State* L);
 
 static const luaL_Reg fslib[] = {
     /* Manual control apis - you are responsible for calling close / open*/
@@ -34,6 +35,7 @@ static const luaL_Reg fslib[] = {
 
     {"readfiletostring", readfiletostring},
     {"writestringtofile", writestringtofile},
+    {"readasync", readasync},
     {NULL, NULL},
 };
 

@@ -13,9 +13,6 @@ Ref::Ref(lua_State* L, int idx)
 
 Ref::~Ref()
 {
-    [[maybe_unused]] Runtime* runtime = getRuntime(GL);
-    assert(!runtime || runtime->runtimeThread == uv_thread_self());
-
     lua_unref(GL, refId);
 }
 

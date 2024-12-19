@@ -24,5 +24,11 @@ target_sources(Queijo.Task PRIVATE
 )
 
 target_sources(Queijo.CLI PRIVATE
+    cli/options.h
+    cli/options.cpp
     cli/queijo.cpp
+    cli/require.h
+    cli/require.cpp
+    cli/spawn.h
+    cli/spawn.cpp
 )

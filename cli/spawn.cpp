@@ -203,7 +203,7 @@ int lua_spawn(lua_State* L)
             func.reset();
         });
 
-        // Remove the Ref we have in current VM, now it will not cause the actualt lua_unref
+        // Remove the Ref we have in current VM, now it will not cause the actual lua_unref
         target->~TargetFunction();
     });
 

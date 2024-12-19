@@ -358,19 +358,18 @@ int writestringtofile(lua_State* L)
 
 struct ResumeCaptureInformation
 {
-    explicit ResumeCaptureInformation(Runtime* rt, std::shared_ptr<Ref> ref)
-        : runtime(rt)
-        , ref(std::move(ref))
+    explicit ResumeCaptureInformation(lua_State* L)
+        : token(getResumeToken(L))
     {
     }
-    Runtime* runtime = nullptr;
-    std::shared_ptr<Ref> ref = nullptr;
+
+    ResumeToken token = nullptr;
 };
 
 uv_fs_t* createRequest(lua_State* L)
 {
     uv_fs_t* req = new uv_fs_t();
-    req->data = new ResumeCaptureInformation(getRuntime(L), std::move(getRefForThread(L)));
+    req->data = new ResumeCaptureInformation(L);
     return req;
 }
 
@@ -382,8 +381,6 @@ ResumeCaptureInformation* getResumeInformation(uv_fs_t* req)
 int readasync(lua_State* L)
 {
     const char* path = luaL_checkstring(L, 1);
-    Runtime* runtime = getRuntime(L);
-    std::shared_ptr<Ref> ref = getRefForThread(L);
 
     uv_fs_t* openReq = createRequest(L);
     uv_fs_open(
@@ -399,7 +396,7 @@ int readasync(lua_State* L)
 
             if (fd < 0)
             {
-                info->runtime->scheduleLuauError(info->ref, "Error opening file");
+                info->token->fail("Error opening file");
                 uv_fs_t closeReq;
                 uv_fs_close(uv_default_loop(), &closeReq, fd, nullptr);
                 uv_fs_req_cleanup(req);
@@ -431,7 +428,7 @@ int readasync(lua_State* L)
                     uv_fs_close(uv_default_loop(), &closeReq, fd, nullptr);
                     // Schedule error;
                     // Also, we should free the original request. We don't have to do this for the read req since it's sycnrhonous
-                    info->runtime->scheduleLuauError(info->ref, "Error reading file");
+                    info->token->fail("Error reading file");
                     uv_fs_req_cleanup(req);
                     delete (ResumeCaptureInformation*)req->data;
                     delete req;
@@ -445,8 +442,7 @@ int readasync(lua_State* L)
             } while (numBytesRead > 0);
 
             // Push the result buffer onto the stack
-            info->runtime->scheduleLuauResume(
-                info->ref,
+            info->token->complete(
                 [data = std::move(resultData)](lua_State* L) 
                 {
                     lua_pushlstring(L, data.data(), data.size());

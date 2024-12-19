@@ -69,8 +69,11 @@ static bool copyLuauObject(lua_State* from, lua_State* to, int fromIdx)
     return true;
 }
 
-static std::shared_ptr<Ref> packStackValues(lua_State* from, lua_State* to)
+static std::shared_ptr<Ref> packStackValues(lua_State* from, std::shared_ptr<Runtime> runtime)
 {
+    std::unique_lock lock(runtime->dataCopyMutex);
+    lua_State* to = runtime->dataCopy.get();
+
     lua_createtable(to, lua_gettop(from), 0);
 
     for (int i = 0; i < lua_gettop(from); i++)
@@ -87,8 +90,11 @@ static std::shared_ptr<Ref> packStackValues(lua_State* from, lua_State* to)
     return args;
 }
 
-static int unpackStackValue(lua_State* from, lua_State* to, std::shared_ptr<Ref> ref)
+static int unpackStackValue(std::shared_ptr<Runtime> runtime, lua_State* to, std::shared_ptr<Ref> ref)
 {
+    std::unique_lock lock(runtime->dataCopyMutex);
+    lua_State* from = runtime->dataCopy.get();
+
     ref->push(from);
     int count = lua_objlen(from, -1);
 
@@ -111,59 +117,33 @@ static int crossVmMarshall(lua_State* L)
     TargetFunction& target = *(TargetFunction*)lua_touserdatatagged(L, lua_upvalueindex(1), kTargetFunctionTag);
 
     // Copy arguments into the data copy VM
-    std::shared_ptr<Ref> args;
+    std::shared_ptr<Ref> args = packStackValues(L, target.runtime);
 
-    {
-        std::unique_lock lock(target.runtime->dataCopyMutex);
+    auto source = getResumeToken(L);
 
-        args = packStackValues(L, target.runtime->dataCopy.get());
-    }
-
-    auto ref = getRefForThread(L);
-    Runtime* source = getRuntime(L);
-
-    target.runtime->schedule([source, ref, target = target, args] {
+    target.runtime->schedule([source, target = target, args] {
         lua_State* L = lua_newthread(target.runtime->GL);
         luaL_sandboxthread(L);
 
         target.func->push(L);
-        int argCount = 0;
 
-        {
-            std::unique_lock lock(target.runtime->dataCopyMutex);
-
-            argCount = unpackStackValue(target.runtime->dataCopy.get(), L, args);
-        }
+        int argCount = unpackStackValue(target.runtime, L, args);
 
         auto co = getRefForThread(L);
         lua_pop(target.runtime->GL, 1);
 
-        target.runtime->runningThreads.push_back({ true, co, argCount, [source, ref, target = target.runtime, co] {
+        target.runtime->runningThreads.push_back({ true, co, argCount, [source, target = target.runtime, co] {
             co->push(target->GL);
             lua_State* L = lua_tothread(target->GL, -1);
             lua_pop(target->GL, 1);
 
-            std::shared_ptr<Ref> rets;
+            std::shared_ptr<Ref> rets = packStackValues(L, target);
 
-            {
-                std::unique_lock lock(target->dataCopyMutex);
-
-                rets = packStackValues(L, target->dataCopy.get());
-            }
-
-            source->scheduleLuauResume(ref, [target, rets](lua_State* L) {
-                int retCount = 0;
-
-                {
-                    std::unique_lock lock(target->dataCopyMutex);
-
-                    retCount = unpackStackValue(target->dataCopy.get(), L, rets);
-                }
-
-                return retCount;
+            source->complete([target, rets](lua_State* L) {
+                return unpackStackValue(target, L, rets);
             });
-        } });
-        });
+        }});
+    });
 
     return lua_yield(L, 0);
 }

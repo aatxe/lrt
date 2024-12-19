@@ -36,7 +36,7 @@ Runtime::~Runtime()
 bool Runtime::runToCompletion()
 {
     // While there is some C++ or Luau code left to run
-    while (!runningThreads.empty() || hasContinuations())
+    while (!runningThreads.empty() || hasContinuations() || activeTokens.load() != 0)
     {
         uv_run(uv_default_loop(), UV_RUN_DEFAULT);
 
@@ -198,7 +198,48 @@ void Runtime::runInWorkQueue(std::function<void()> f)
     });
 }
 
+void Runtime::addPendingToken()
+{
+    activeTokens.fetch_add(1);
+}
+
+void Runtime::releasePendingToken()
+{
+    [[maybe_unused]] int before = activeTokens.fetch_sub(1);
+    assert(before > 0);
+}
+
 Runtime* getRuntime(lua_State* L)
 {
     return reinterpret_cast<Runtime*>(lua_getthreaddata(lua_mainthread(L)));
+}
+
+void ResumeTokenData::fail(std::string error)
+{
+    assert(!completed);
+    completed = true;
+
+    runtime->scheduleLuauError(ref, std::move(error));
+    runtime->releasePendingToken();
+}
+
+void ResumeTokenData::complete(std::function<int(lua_State*)> cont)
+{
+    assert(!completed);
+    completed = true;
+
+    runtime->scheduleLuauResume(ref, std::move(cont));
+    runtime->releasePendingToken();
+}
+
+ResumeToken getResumeToken(lua_State* L)
+{
+    ResumeToken token = std::make_shared<ResumeTokenData>();
+
+    token->runtime = getRuntime(L);
+    token->ref = getRefForThread(L);
+
+    token->runtime->addPendingToken();
+
+    return token;
 }

@@ -41,6 +41,9 @@ struct Runtime
     // Run 'f' in a libuv work queue
     void runInWorkQueue(std::function<void()> f);
 
+    void addPendingToken();
+    void releasePendingToken();
+
     // VM for this runtime
     std::unique_ptr<lua_State, void (*)(lua_State*)> globalState;
 
@@ -60,6 +63,25 @@ private:
     std::atomic<bool> stop;
     std::condition_variable runLoopCv;
     std::thread runLoopThread;
+
+    std::atomic<int> activeTokens;
 };
 
 Runtime* getRuntime(lua_State* L);
+
+struct ResumeTokenData;
+using ResumeToken = std::shared_ptr<ResumeTokenData>;
+
+struct ResumeTokenData
+{
+    static ResumeToken get(lua_State* L);
+
+    void fail(std::string error);
+    void complete(std::function<int(lua_State*)> cont);
+
+    Runtime* runtime = nullptr;
+    std::shared_ptr<Ref> ref;
+    bool completed = false;
+};
+
+ResumeToken getResumeToken(lua_State* L);

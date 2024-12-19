@@ -67,20 +67,19 @@ static int getAsync(lua_State* L)
 {
     std::string url = luaL_checkstring(L, 1);
 
-    auto ref = getRefForThread(L);
-    Runtime* runtime = getRuntime(L);
+    auto token = getResumeToken(L);
 
     // TODO: add cancellations
-    runtime->runInWorkQueue([=] {
+    token->runtime->runInWorkQueue([=] {
         auto [error, data] = requestData(url);
 
         if (!error.empty())
         {
-            runtime->scheduleLuauError(ref, "network request failed: " + error);
+            token->fail("network request failed: " + error);
         }
         else
         {
-            runtime->scheduleLuauResume(ref, [data = std::move(data)](lua_State* L) {
+            token->complete([data = std::move(data)](lua_State* L) {
                 lua_pushlstring(L, data.data(), data.size());
                 return 1;
             });

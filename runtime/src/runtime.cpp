@@ -17,6 +17,7 @@ Runtime::Runtime()
     , dataCopy(nullptr, lua_close_checked)
 {
     stop.store(false);
+    activeTokens.store(0);
 }
 
 Runtime::~Runtime()

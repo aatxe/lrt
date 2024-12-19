@@ -6,7 +6,6 @@ local vm1 = spawn("./fib")
 local vm2 = spawn("./fib")
 local vm3 = spawn("./fib")
 
---[[ TODO: would be nice to have multiple yields in a task auto-continue
 do
     local start = os.clock();
 
@@ -18,7 +17,6 @@ do
 
     print("multiple direct fib in", os.clock() - start)
 end
-]]
 
 do
     local start = os.clock();

@@ -454,6 +454,14 @@ static int lua_spawn(lua_State* L)
     return 1;
 }
 
+static int lua_defer(lua_State* L)
+{
+    auto runtime = getRuntime(L);
+
+    runtime->runningThreads.push_back({ true, getRefForThread(L), 0 });
+    return lua_yield(L, 0);
+}
+
 lua_State* setupState(Runtime& runtime)
 {
     // Separate VM for data copies
@@ -483,6 +491,7 @@ lua_State* setupState(Runtime& runtime)
     static const luaL_Reg funcs[] = {
         {"require", lua_require},
         {"spawn", lua_spawn},
+        {"defer", lua_defer},
         {nullptr, nullptr},
     };
 

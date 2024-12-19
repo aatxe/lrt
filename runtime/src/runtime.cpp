@@ -90,7 +90,6 @@ bool Runtime::runToCompletion()
                 return false;
             }
 
-            runningThreads.push_back({ true, getRefForThread(L), 0 });
             continue;
         }
 

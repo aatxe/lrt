@@ -20,7 +20,7 @@ end
 
 local function await(t: Task)
     while t.success == nil do
-        coroutine.yield()
+        defer()
     end
 
     if t.success then
@@ -41,7 +41,7 @@ local function awaitAll(...: Task)
         for i, v in tasks do
             if v.success == nil then
                 done = false
-                coroutine.yield()
+                defer()
             end
         end
     end

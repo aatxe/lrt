@@ -57,13 +57,13 @@ lua_State* setupState(Runtime& runtime)
     // register the builtin tables
     luaL_openlibs(L);
 
+    luaopen_fs(L);
+    lua_pop(L, 1);
+
     luaopen_net(L);
     lua_pop(L, 1);
 
     luaopen_luau(L);
-    lua_pop(L, 1);
-
-    luaopen_fs(L);
     lua_pop(L, 1);
 
     static const luaL_Reg funcs[] = {

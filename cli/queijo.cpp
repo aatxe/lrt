@@ -8,8 +8,9 @@
 #include "Luau/Parser.h"
 #include "Luau/Require.h"
 
-#include "queijo/net.h"
 #include "queijo/fs.h"
+#include "queijo/net.h"
+#include "queijo/luau.h"
 #include "queijo/ref.h"
 #include "queijo/runtime.h"
 #include "uv.h"
@@ -215,8 +216,9 @@ void setupState(Runtime& runtime, lua_State* L)
     // register the builtin tables
     luaL_openlibs(L);
 
-    luaopen_net(L);
     luaopen_fs(L);
+    luaopen_luau(L);
+    luaopen_net(L);
 
     lua_pop(L, 1);
 

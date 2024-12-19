@@ -678,11 +678,11 @@ struct AstSerialize : public Luau::AstVisitor
         serialize(node->op);
         lua_setfield(L, -2, "operand");
 
-        serializeExprs(node->vars);
-        lua_setfield(L, -2, "variables");
+        node->var->visit(this);
+        lua_setfield(L, -2, "variable");
 
-        serializeExprs(node->values);
-        lua_setfield(L, -2, "values");
+        node->value->visit(this);
+        lua_setfield(L, -2, "value");
     }
 
     void serializeStat(Luau::AstStatFunction* node)
@@ -704,7 +704,8 @@ struct AstSerialize : public Luau::AstVisitor
 
         serializeNodePreamble(node, "localfunction");
 
-        node->name->visit(this);
+        // TODO: locals
+        lua_pushnil(L);
         lua_setfield(L, -2, "name");
 
         node->func->visit(this);

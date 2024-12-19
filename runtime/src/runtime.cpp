@@ -14,7 +14,20 @@ static void lua_close_checked(lua_State* L)
 
 Runtime::Runtime()
     : globalState(nullptr, lua_close_checked)
+    , dataCopy(nullptr, lua_close_checked)
 {
+    stop.store(false);
+}
+
+Runtime::~Runtime()
+{
+    {
+        std::unique_lock lock(continuationMutex);
+
+        stop.store(true);
+
+        runLoopCv.notify_one();
+    }
 }
 
 bool Runtime::runToCompletion()
@@ -89,15 +102,47 @@ bool Runtime::runToCompletion()
             fprintf(stderr, "%s", error.c_str());
             return false;
         }
+
+        if (next.cont)
+            next.cont();
     }
 
     return true;
+}
+
+void Runtime::runContinuously()
+{
+    while (!stop)
+    {
+        // Block to wait on event
+        {
+            std::unique_lock lock(continuationMutex);
+
+            runLoopCv.wait(lock, [this] {
+                return !continuations.empty() || stop;
+            });
+        }
+
+        runToCompletion();
+    }
+
+    // Debug
+    printf("Runtime::runContinuously() done\n");
 }
 
 bool Runtime::hasContinuations()
 {
     std::unique_lock lock(continuationMutex);
     return !continuations.empty();
+}
+
+void Runtime::schedule(std::function<void()> f)
+{
+    std::unique_lock lock(continuationMutex);
+
+    continuations.push_back(std::move(f));
+
+    runLoopCv.notify_one();
 }
 
 void Runtime::scheduleLuauError(std::shared_ptr<Ref> ref, std::string error)
@@ -112,6 +157,8 @@ void Runtime::scheduleLuauError(std::shared_ptr<Ref> ref, std::string error)
         lua_pushlstring(L, error.data(), error.size());
         runningThreads.push_back({ false, ref, lua_gettop(L) });
     });
+
+    runLoopCv.notify_one();
 }
 
 void Runtime::scheduleLuauResume(std::shared_ptr<Ref> ref, std::function<int(lua_State*)> cont)
@@ -126,6 +173,8 @@ void Runtime::scheduleLuauResume(std::shared_ptr<Ref> ref, std::function<int(lua
         int results = cont(L);
         runningThreads.push_back({ true, ref, results });
     });
+
+    runLoopCv.notify_one();
 }
 
 void Runtime::runInWorkQueue(std::function<void()> f)

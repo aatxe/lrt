@@ -223,17 +223,160 @@ struct TargetFunction
 
 constexpr int kTargetFunctionTag = 1;
 
+static bool copyLuauObject(lua_State* from, lua_State* to, int fromIdx)
+{
+    switch (lua_type(from, fromIdx))
+    {
+    case LUA_TNIL:
+        lua_pushnil(to);
+        break;
+    case LUA_TBOOLEAN:
+        lua_pushboolean(to, lua_toboolean(from, fromIdx));
+        break;
+    case LUA_TNUMBER:
+        lua_pushnumber(to, lua_tonumber(from, fromIdx));
+        break;
+    case LUA_TSTRING:
+    {
+        size_t len = 0;
+        const char* str = lua_tolstring(from, fromIdx, &len);
+        lua_pushlstring(to, str, len);
+    }
+        break;
+    case LUA_TTABLE:
+        lua_createtable(to, 0, 0);
+
+        for (int i = 0; i = lua_rawiter(from, fromIdx, i), i >= 0;)
+        {
+            if (!copyLuauObject(from, to, -2))
+            {
+                lua_pop(from, 2);
+                return false;
+            }
+
+            if (!copyLuauObject(from, to, -1))
+            {
+                lua_pop(from, 2);
+                return false;
+            }
+
+            lua_rawset(to, -3);
+
+            lua_pop(from, 2);
+        }
+        break;
+    default:
+        return false;
+    }
+
+    return true;
+}
+
+static std::shared_ptr<Ref> packStackValues(lua_State* from, lua_State* to)
+{
+    lua_createtable(to, lua_gettop(from), 0);
+
+    for (int i = 0; i < lua_gettop(from); i++)
+    {
+        if (!copyLuauObject(from, to, i + 1))
+            luaL_error(from, "Failed to copy arguments between VMs");
+
+        lua_rawseti(to, -2, i + 1);
+    }
+
+    auto args = std::make_shared<Ref>(to, -1);
+    lua_pop(to, 1);
+
+    return args;
+}
+
+static int unpackStackValue(lua_State* from, lua_State* to, std::shared_ptr<Ref> ref)
+{
+    ref->push(from);
+    int count = lua_objlen(from, -1);
+
+    for (int i = 0; i < count; i++)
+    {
+        lua_rawgeti(from, -1, i + 1);
+
+        if (!copyLuauObject(from, to, -1))
+            luaL_error(to, "Failed to copy arguments between VMs"); // TODO: might not be in a VM protected call
+
+        lua_pop(from, 1);
+    }
+
+    lua_pop(from, 1);
+    return count;
+}
+
 static int crossVmMarshall(lua_State* L)
 {
-    TargetFunction* target = (TargetFunction*)lua_touserdatatagged(L, lua_upvalueindex(1), kTargetFunctionTag);
+    TargetFunction& target = *(TargetFunction*)lua_touserdatatagged(L, lua_upvalueindex(1), kTargetFunctionTag);
 
+    // Copy arguments into the data copy VM
+    std::shared_ptr<Ref> args;
 
+    {
+        std::unique_lock lock(target.runtime->dataCopyMutex);
 
-    return 0;
+        args = packStackValues(L, target.runtime->dataCopy.get());
+    }
+
+    auto ref = getRefForThread(L);
+    Runtime* source = getRuntime(L);
+
+    target.runtime->schedule([source, ref, target = target, args] {
+        lua_State* L = lua_newthread(target.runtime->GL);
+        luaL_sandboxthread(L);
+
+        target.func->push(L);
+        int argCount = 0;
+
+        {
+            std::unique_lock lock(target.runtime->dataCopyMutex);
+
+            argCount = unpackStackValue(target.runtime->dataCopy.get(), L, args);
+        }
+
+        auto co = getRefForThread(L);
+        lua_pop(target.runtime->GL, 1);
+
+        target.runtime->runningThreads.push_back({ true, co, argCount, [source, ref, target = target.runtime, co] {
+            co->push(target->GL);
+            lua_State* L = lua_tothread(target->GL, -1);
+            lua_pop(target->GL, 1);
+
+            std::shared_ptr<Ref> rets;
+
+            {
+                std::unique_lock lock(target->dataCopyMutex);
+
+                rets = packStackValues(L, target->dataCopy.get());
+            }
+
+            source->scheduleLuauResume(ref, [target, rets](lua_State* L) {
+                int retCount = 0;
+
+                {
+                    std::unique_lock lock(target->dataCopyMutex);
+
+                    retCount = unpackStackValue(target->dataCopy.get(), L, rets);
+                }
+
+                return retCount;
+            });
+        } });
+    });
+
+    return lua_yield(L, 0);
 }
 
 static int crossVmMarshallCont(lua_State* L, int status)
 {
+    if (status == LUA_OK)
+        return lua_gettop(L);
+
+    luaL_error(L, "async function errored");
     return 0;
 }
 
@@ -304,14 +447,23 @@ static int lua_spawn(lua_State* L)
         lua_pop(child->GL, 2);
     }
 
-    // TODO: we might not actually need to explicitly store child runtimes if they are only called in marshalling
-    runtime->childRuntimes.push_back(child);
+    lua_pop(child->GL, 1);
+
+    // TODO: another place for libuv
+    // FIXME: this strong reference to Runtime prevents it from being freed
+    std::thread thread([child] {
+        child->runContinuously();
+    });
+    thread.detach();
 
     return 1;
 }
 
 lua_State* setupState(Runtime& runtime)
 {
+    // Separate VM for data copies
+    runtime.dataCopy.reset(luaL_newstate());
+
     runtime.globalState.reset(luaL_newstate());
 
     lua_State* L = runtime.globalState.get();

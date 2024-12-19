@@ -146,7 +146,7 @@ struct AstSerialize : public Luau::AstVisitor
 
         for (size_t i = 0; i < exprs.size; i++)
         {
-            visit(exprs.data[i]);
+            exprs.data[i]->visit(this);
             lua_rawseti(L, -2, i + 1);
         }
     }
@@ -162,34 +162,24 @@ struct AstSerialize : public Luau::AstVisitor
         }
     }
 
-    bool serialize(Luau::AstExpr* node)
-    {
-        node->visit(this);
-        return false;
-    }
-
-    bool serialize(Luau::AstExprGroup* node)
+    void serialize(Luau::AstExprGroup* node)
     {
         lua_createtable(L, 0, preambleSize + 1);
 
         serializeNodePreamble(node, "group");
 
-        serialize(node->expr);
+        node->expr->visit(this);
         lua_setfield(L, -2, "expr");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprConstantNil* node)
+    void serialize(Luau::AstExprConstantNil* node)
     {
         lua_createtable(L, 0, preambleSize);
 
         serializeNodePreamble(node, "nil");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprConstantBool* node)
+    void serialize(Luau::AstExprConstantBool* node)
     {
         lua_createtable(L, 0, preambleSize + 1);
 
@@ -197,11 +187,9 @@ struct AstSerialize : public Luau::AstVisitor
 
         lua_pushboolean(L, node->value);
         lua_setfield(L, -2, "value");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprConstantNumber* node)
+    void serialize(Luau::AstExprConstantNumber* node)
     {
         lua_createtable(L, 0, preambleSize + 1);
 
@@ -209,11 +197,9 @@ struct AstSerialize : public Luau::AstVisitor
 
         lua_pushnumber(L, node->value);
         lua_setfield(L, -2, "value");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprConstantString* node)
+    void serialize(Luau::AstExprConstantString* node)
     {
         lua_createtable(L, 0, preambleSize + 1);
 
@@ -221,11 +207,9 @@ struct AstSerialize : public Luau::AstVisitor
 
         lua_pushlstring(L, node->value.data, node->value.size);
         lua_setfield(L, -2, "value");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprLocal* node)
+    void serialize(Luau::AstExprLocal* node)
     {
         lua_createtable(L, 0, preambleSize + 2);
 
@@ -237,11 +221,9 @@ struct AstSerialize : public Luau::AstVisitor
 
         lua_pushboolean(L, node->upvalue);
         lua_setfield(L, -2, "upvalue");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprGlobal* node)
+    void serialize(Luau::AstExprGlobal* node)
     {
         lua_createtable(L, 0, preambleSize + 1);
 
@@ -249,42 +231,36 @@ struct AstSerialize : public Luau::AstVisitor
 
         lua_pushstring(L, node->name.value);
         lua_setfield(L, -2, "name");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprVarargs* node)
+    void serialize(Luau::AstExprVarargs* node)
     {
         lua_createtable(L, 0, preambleSize);
 
         serializeNodePreamble(node, "vararg");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprCall* node)
+    void serialize(Luau::AstExprCall* node)
     {
         lua_createtable(L, 0, preambleSize + 2);
 
         serializeNodePreamble(node, "call");
 
-        serialize(node->func);
+        node->func->visit(this);
         lua_setfield(L, -2, "func");
 
         serializeExprs(node->args, 1);
         withLocation(node->argLocation);
         lua_setfield(L, -2, "arguments");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprIndexName* node)
+    void serialize(Luau::AstExprIndexName* node)
     {
         lua_createtable(L, 0, preambleSize + 3);
 
         serializeNodePreamble(node, "indexname");
 
-        serialize(node->expr);
+        node->expr->visit(this);
         lua_setfield(L, -2, "expr");
 
         serialize(node->index);
@@ -297,37 +273,31 @@ struct AstSerialize : public Luau::AstVisitor
         serialize(node->opPosition);
         lua_setfield(L, -2, "position");
         lua_setfield(L, -2, "accessor");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprIndexExpr* node)
+    void serialize(Luau::AstExprIndexExpr* node)
     {
         lua_createtable(L, 0, preambleSize + 2);
 
         serializeNodePreamble(node, "index");
 
-        serialize(node->expr);
+        node->expr->visit(this);
         lua_setfield(L, -2, "expr");
 
-        serialize(node->index);
+        node->index->visit(this);
         lua_setfield(L, -2, "index");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprFunction* node)
+    void serialize(Luau::AstExprFunction* node)
     {
         lua_createtable(L, 0, preambleSize);
 
         serializeNodePreamble(node, "function");
 
         // TODO: functions
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprTable* node)
+    void serialize(Luau::AstExprTable* node)
     {
         lua_createtable(L, 0, preambleSize + 1);
 
@@ -340,11 +310,9 @@ struct AstSerialize : public Luau::AstVisitor
             lua_rawseti(L, -2, i + 1);
         }
         lua_setfield(L, -2, "entries");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprUnary* node)
+    void serialize(Luau::AstExprUnary* node)
     {
         lua_createtable(L, 0, preambleSize + 2);
 
@@ -364,13 +332,11 @@ struct AstSerialize : public Luau::AstVisitor
         }
         lua_setfield(L, -2, "operator");
 
-        serialize(node->expr);
+        node->expr->visit(this);
         lua_setfield(L, -2, "operand");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprBinary* node)
+    void serialize(Luau::AstExprBinary* node)
     {
         lua_createtable(L, 0, preambleSize + 3);
 
@@ -431,55 +397,49 @@ struct AstSerialize : public Luau::AstVisitor
         }
         lua_setfield(L, -2, "operator");
 
-        serialize(node->left);
-        lua_setfield(L, -2, "leftoperand");
+        node->left->visit(this);
+        lua_setfield(L, -2, "lhsoperand");
 
-        serialize(node->right);
-        lua_setfield(L, -2, "rightoperand");
-
-        return true;
+        node->right->visit(this);
+        lua_setfield(L, -2, "rhsoperand");
     }
 
-    bool serialize(Luau::AstExprTypeAssertion* node)
+    void serialize(Luau::AstExprTypeAssertion* node)
     {
         lua_createtable(L, 0, preambleSize + 2);
 
         serializeNodePreamble(node, "cast");
 
-        serialize(node->expr);
+        node->expr->visit(this);
         lua_setfield(L, -2, "operand");
 
         lua_pushnil(L); // TODO: types
         lua_setfield(L, -2, "annotation");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprIfElse* node)
+    void serialize(Luau::AstExprIfElse* node)
     {
         lua_createtable(L, 0, preambleSize + 3);
 
         serializeNodePreamble(node, "conditional");
 
-        serialize(node->condition);
+        node->condition->visit(this);
         lua_setfield(L, -2, "condition");
 
         if (node->hasThen)
-            serialize(node->trueExpr);
+            node->trueExpr->visit(this);
         else
             lua_pushnil(L);
         lua_setfield(L, -2, "consequent");
 
         if (node->hasElse)
-            serialize(node->falseExpr);
+            node->falseExpr->visit(this);
         else
             lua_pushnil(L);
         lua_setfield(L, -2, "antecedent");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprInterpString* node)
+    void serialize(Luau::AstExprInterpString* node)
     {
         lua_createtable(L, 0, preambleSize + 2);
 
@@ -495,11 +455,9 @@ struct AstSerialize : public Luau::AstVisitor
 
         serializeExprs(node->expressions);
         lua_setfield(L, -2, "expressions");
-
-        return true;
     }
 
-    bool serialize(Luau::AstExprError* node)
+    void serialize(Luau::AstExprError* node)
     {
         lua_createtable(L, 0, preambleSize + 2);
 
@@ -509,8 +467,136 @@ struct AstSerialize : public Luau::AstVisitor
         lua_setfield(L, -2, "expressions");
 
         // TODO: messageIndex reference
+    }
 
-        return true;
+    void serializeStat(Luau::AstStatBlock* node)
+    {
+        serializeStats(node->body);
+    }
+
+    void serializeStat(Luau::AstStatIf* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatWhile* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatRepeat* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatBreak* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatContinue* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatReturn* node)
+    {
+        serializeExprs(node->list);
+    }
+
+    void serializeStat(Luau::AstStatExpr* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatLocal* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatFor* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatForIn* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatAssign* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatCompoundAssign* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatFunction* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatLocalFunction* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatTypeAlias* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatDeclareFunction* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatDeclareGlobal* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatDeclareClass* node)
+    {
+    }
+
+    void serializeStat(Luau::AstStatError* node)
+    {
+    }
+
+    void serializeType(Luau::AstTypeReference* node)
+    {
+    }
+
+    void serializeType(Luau::AstTypeTable* node)
+    {
+    }
+
+    void serializeType(Luau::AstTypeFunction* node)
+    {
+    }
+
+    void serializeType(Luau::AstTypeTypeof* node)
+    {
+    }
+
+    void serializeType(Luau::AstTypeIntersection* node)
+    {
+    }
+
+    void serializeType(Luau::AstTypeSingletonBool* node)
+    {
+    }
+
+    void serializeType(Luau::AstTypeSingletonString* node)
+    {
+    }
+
+    void serializeType(Luau::AstTypeError* node)
+    {
+    }
+
+    void serializeType(Luau::AstTypePack* node)
+    {
+    }
+
+    void serializeType(Luau::AstTypePackExplicit* node)
+    {
+    }
+
+    void serializeType(Luau::AstTypePackVariadic* node)
+    {
+    }
+
+    void serializeType(Luau::AstTypePackGeneric* node)
+    {
     }
 
     bool visit(Luau::AstExpr* node) override

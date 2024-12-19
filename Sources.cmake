@@ -31,4 +31,6 @@ target_sources(Queijo.CLI PRIVATE
     cli/require.cpp
     cli/spawn.h
     cli/spawn.cpp
+    cli/tc.h
+    cli/tc.cpp
 )

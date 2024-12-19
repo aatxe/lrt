@@ -15,6 +15,7 @@
 #include "options.h"
 #include "require.h"
 #include "spawn.h"
+#include "tc.h"
 
 #include "uv.h"
 
@@ -147,6 +148,7 @@ static void displayHelp(const char* argv0)
     printf("\n");
     printf("Available options:\n");
     printf("  -h, --help: Display this usage message.\n");
+    printf("  --check: Run a strict typecheck of the Luau program.\n");
     printf("  --: declare start of arguments to be passed to the Luau program\n");
 }
 
@@ -155,6 +157,7 @@ static int assertionHandler(const char* expr, const char* file, int line, const 
     printf("%s(%d): ASSERTION FAILED: %s\n", file, line, expr);
     return 1;
 }
+
 
 int main(int argc, char** argv)
 {
@@ -165,6 +168,7 @@ int main(int argc, char** argv)
 #endif
 
     int program_args = argc;
+    bool runTypecheck = false;
 
     for (int i = 1; i < argc; i++)
     {
@@ -175,6 +179,12 @@ int main(int argc, char** argv)
         }
         else if (strcmp(argv[i], "--") == 0)
         {
+            program_args = i + 1;
+            break;
+        }
+        else if (strcmp(argv[i], "--check") == 0)
+        {
+            runTypecheck = true;
             program_args = i + 1;
             break;
         }
@@ -190,6 +200,12 @@ int main(int argc, char** argv)
     program_argv = &argv[program_args];
 
     const std::vector<std::string> files = getSourceFiles(argc, argv);
+
+    // Given the source files, perform a typecheck here
+    if (runTypecheck)
+    {
+        return typecheck(files);
+    }
 
     if (files.empty())
     {

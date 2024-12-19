@@ -130,6 +130,63 @@ struct AstSerialize : public Luau::AstVisitor
         lua_setfield(L, -2, "location");
     }
 
+    void serialize(Luau::AstExprBinary::Op& op)
+    {
+        switch (op)
+        {
+        case Luau::AstExprBinary::Op::Add:
+            lua_pushstring(L, "+");
+            break;
+        case Luau::AstExprBinary::Op::Sub:
+            lua_pushstring(L, "-");
+            break;
+        case Luau::AstExprBinary::Op::Mul:
+            lua_pushstring(L, "*");
+            break;
+        case Luau::AstExprBinary::Op::Div:
+            lua_pushstring(L, "/");
+            break;
+        case Luau::AstExprBinary::Op::FloorDiv:
+            lua_pushstring(L, "//");
+            break;
+        case Luau::AstExprBinary::Op::Mod:
+            lua_pushstring(L, "%");
+            break;
+        case Luau::AstExprBinary::Op::Pow:
+            lua_pushstring(L, "^");
+            break;
+        case Luau::AstExprBinary::Op::Concat:
+            lua_pushstring(L, "..");
+            break;
+        case Luau::AstExprBinary::Op::CompareNe:
+            lua_pushstring(L, "~=");
+            break;
+        case Luau::AstExprBinary::Op::CompareEq:
+            lua_pushstring(L, "==");
+            break;
+        case Luau::AstExprBinary::Op::CompareLt:
+            lua_pushstring(L, "<");
+            break;
+        case Luau::AstExprBinary::Op::CompareLe:
+            lua_pushstring(L, "<=");
+            break;
+        case Luau::AstExprBinary::Op::CompareGt:
+            lua_pushstring(L, ">");
+            break;
+        case Luau::AstExprBinary::Op::CompareGe:
+            lua_pushstring(L, ">=");
+            break;
+        case Luau::AstExprBinary::Op::And:
+            lua_pushstring(L, "and");
+            break;
+        case Luau::AstExprBinary::Op::Or:
+            lua_pushstring(L, "or");
+            break;
+        case Luau::AstExprBinary::Op::Op__Count:
+            luaL_error(L, "encountered illegal operator: Op__Count");
+        }
+    }
+
     // preambleSize should encode the size of the fields we're setting up for _all_ nodes.
     static const size_t preambleSize = 2;
     void serializeNodePreamble(Luau::AstNode* node, const char* tag)
@@ -342,59 +399,7 @@ struct AstSerialize : public Luau::AstVisitor
 
         serializeNodePreamble(node, "binary");
 
-        switch (node->op)
-        {
-        case Luau::AstExprBinary::Op::Add:
-            lua_pushstring(L, "+");
-            break;
-        case Luau::AstExprBinary::Op::Sub:
-            lua_pushstring(L, "-");
-            break;
-        case Luau::AstExprBinary::Op::Mul:
-            lua_pushstring(L, "*");
-            break;
-        case Luau::AstExprBinary::Op::Div:
-            lua_pushstring(L, "/");
-            break;
-        case Luau::AstExprBinary::Op::FloorDiv:
-            lua_pushstring(L, "//");
-            break;
-        case Luau::AstExprBinary::Op::Mod:
-            lua_pushstring(L, "%");
-            break;
-        case Luau::AstExprBinary::Op::Pow:
-            lua_pushstring(L, "^");
-            break;
-        case Luau::AstExprBinary::Op::Concat:
-            lua_pushstring(L, "..");
-            break;
-        case Luau::AstExprBinary::Op::CompareNe:
-            lua_pushstring(L, "~=");
-            break;
-        case Luau::AstExprBinary::Op::CompareEq:
-            lua_pushstring(L, "==");
-            break;
-        case Luau::AstExprBinary::Op::CompareLt:
-            lua_pushstring(L, "<");
-            break;
-        case Luau::AstExprBinary::Op::CompareLe:
-            lua_pushstring(L, "<=");
-            break;
-        case Luau::AstExprBinary::Op::CompareGt:
-            lua_pushstring(L, ">");
-            break;
-        case Luau::AstExprBinary::Op::CompareGe:
-            lua_pushstring(L, ">=");
-            break;
-        case Luau::AstExprBinary::Op::And:
-            lua_pushstring(L, "and");
-            break;
-        case Luau::AstExprBinary::Op::Or:
-            lua_pushstring(L, "or");
-            break;
-        case Luau::AstExprBinary::Op::Op__Count:
-            luaL_error(L, "encountered illegal operator: Op__Count");
-        }
+        serialize(node->op);
         lua_setfield(L, -2, "operator");
 
         node->left->visit(this);
@@ -575,114 +580,230 @@ struct AstSerialize : public Luau::AstVisitor
 
     void serializeStat(Luau::AstStatLocal* node)
     {
-        lua_createtable(L, 0, preambleSize + 1);
+        lua_createtable(L, 0, preambleSize + 3);
 
         serializeNodePreamble(node, "local");
+
+        // TODO: locals
+        lua_pushnil(L);
+        lua_setfield(L, -2, "variables");
+
+        serializeExprs(node->values);
+        lua_setfield(L, -2, "values");
 
         if (node->equalsSignLocation)
             serialize(*node->equalsSignLocation);
         else
             lua_pushnil(L);
         lua_setfield(L, -2, "equalsSignLocation");
-
-        serializeExprs(node->values);
-        lua_setfield(L, -2, "values");
-
-        // TODO: locals
-        lua_pushnil(L);
-        lua_setfield(L, -2, "variables");
     }
 
     void serializeStat(Luau::AstStatFor* node)
     {
+        lua_createtable(L, 0, preambleSize + 6);
+
+        serializeNodePreamble(node, "for");
+
+        // TODO: locals
+        lua_pushnil(L);
+        lua_setfield(L, -2, "variable");
+
+        node->from->visit(this);
+        lua_setfield(L, -2, "from");
+
+        node->to->visit(this);
+        lua_setfield(L, -2, "to");
+
+        node->step->visit(this);
+        lua_setfield(L, -2, "step");
+
+        node->body->visit(this);
+        lua_setfield(L, -2, "body");
+
+        if (node->hasDo)
+            serialize(node->doLocation);
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "doLocation");
     }
 
     void serializeStat(Luau::AstStatForIn* node)
     {
+        lua_createtable(L, 0, preambleSize + 5);
+
+        serializeNodePreamble(node, "forin");
+
+        // TODO: locals
+        lua_pushnil(L);
+        lua_setfield(L, -2, "variables");
+
+        serializeExprs(node->values);
+        lua_setfield(L, -2, "values");
+
+        node->body->visit(this);
+        lua_setfield(L, -2, "body");
+
+        if (node->hasIn)
+            serialize(node->inLocation);
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "inLocation");
+
+        if (node->hasDo)
+            serialize(node->doLocation);
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "doLocation");
     }
 
     void serializeStat(Luau::AstStatAssign* node)
     {
+        lua_createtable(L, 0, preambleSize + 2);
+
+        serializeNodePreamble(node, "assign");
+
+        serializeExprs(node->vars);
+        lua_setfield(L, -2, "variables");
+
+        serializeExprs(node->values);
+        lua_setfield(L, -2, "values");
     }
 
     void serializeStat(Luau::AstStatCompoundAssign* node)
     {
+        lua_createtable(L, 0, preambleSize + 3);
+
+        serializeNodePreamble(node, "compoundassign");
+
+        serialize(node->op);
+        lua_setfield(L, -2, "operand");
+
+        serializeExprs(node->vars);
+        lua_setfield(L, -2, "variables");
+
+        serializeExprs(node->values);
+        lua_setfield(L, -2, "values");
     }
 
     void serializeStat(Luau::AstStatFunction* node)
     {
+        lua_createtable(L, 0, preambleSize + 2);
+
+        serializeNodePreamble(node, "function");
+
+        node->name->visit(this);
+        lua_setfield(L, -2, "name");
+
+        node->func->visit(this);
+        lua_setfield(L, -2, "function");
     }
 
     void serializeStat(Luau::AstStatLocalFunction* node)
     {
+        lua_createtable(L, 0, preambleSize + 2);
+
+        serializeNodePreamble(node, "localfunction");
+
+        node->name->visit(this);
+        lua_setfield(L, -2, "name");
+
+        node->func->visit(this);
+        lua_setfield(L, -2, "function");
     }
 
     void serializeStat(Luau::AstStatTypeAlias* node)
     {
+        // TODO: types
     }
 
     void serializeStat(Luau::AstStatDeclareFunction* node)
     {
+        // TODO: declarations
     }
 
     void serializeStat(Luau::AstStatDeclareGlobal* node)
     {
+        // TODO: declarations
     }
 
     void serializeStat(Luau::AstStatDeclareClass* node)
     {
+        // TODO: declarations
     }
 
     void serializeStat(Luau::AstStatError* node)
     {
+        lua_createtable(L, 0, preambleSize + 3);
+
+        serializeNodePreamble(node, "error");
+
+        serializeExprs(node->expressions);
+        lua_setfield(L, -2, "expressions");
+
+        serializeStats(node->statements);
+        lua_setfield(L, -2, "statements");
+
+        // TODO: messageIndex reference
     }
 
     void serializeType(Luau::AstTypeReference* node)
     {
+        // TODO: types
     }
 
     void serializeType(Luau::AstTypeTable* node)
     {
+        // TODO: types
     }
 
     void serializeType(Luau::AstTypeFunction* node)
     {
+        // TODO: types
     }
 
     void serializeType(Luau::AstTypeTypeof* node)
     {
+        // TODO: types
     }
 
     void serializeType(Luau::AstTypeIntersection* node)
     {
+        // TODO: types
     }
 
     void serializeType(Luau::AstTypeSingletonBool* node)
     {
+        // TODO: types
     }
 
     void serializeType(Luau::AstTypeSingletonString* node)
     {
+        // TODO: types
     }
 
     void serializeType(Luau::AstTypeError* node)
     {
+        // TODO: types
     }
 
     void serializeType(Luau::AstTypePack* node)
     {
+        // TODO: types
     }
 
     void serializeType(Luau::AstTypePackExplicit* node)
     {
+        // TODO: types
     }
 
     void serializeType(Luau::AstTypePackVariadic* node)
     {
+        // TODO: types
     }
 
     void serializeType(Luau::AstTypePackGeneric* node)
     {
+        // TODO: types
     }
 
     bool visit(Luau::AstExpr* node) override

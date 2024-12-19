@@ -2,6 +2,7 @@ target_sources(Queijo.Runtime PRIVATE
     runtime/include/queijo/ref.h
     runtime/include/queijo/runtime.h
 
+    runtime/src/ref.cpp
     runtime/src/runtime.cpp
 )
 

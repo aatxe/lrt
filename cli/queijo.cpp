@@ -47,6 +47,8 @@ lua_State* setupState(Runtime& runtime)
 
     runtime.GL = L;
 
+    runtime.runtimeThread = uv_thread_self();
+
     lua_setthreaddata(L, &runtime);
 
     /* register new libraries */

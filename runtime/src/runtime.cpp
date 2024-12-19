@@ -17,6 +17,7 @@ Runtime::Runtime()
     , dataCopy(nullptr, lua_close_checked)
 {
     stop.store(false);
+    activeTokens.store(0);
 }
 
 Runtime::~Runtime()
@@ -35,7 +36,7 @@ Runtime::~Runtime()
 
 bool Runtime::runToCompletion()
 {
-    // While there is some C++ or Luau code left to run
+    // While there is some C++ or Luau code left to run (waiting for something to happen?)
     while (!runningThreads.empty() || hasContinuations() || activeTokens.load() != 0)
     {
         uv_run(uv_default_loop(), UV_RUN_DEFAULT);
@@ -118,6 +119,9 @@ void Runtime::runContinuously()
 {
     // TODO: another place for libuv
     runLoopThread = std::thread([this] {
+        // This runtime is now running the VM on this thread only
+        runtimeThread = uv_thread_self();
+
         while (!stop)
         {
             // Block to wait on event

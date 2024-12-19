@@ -2,6 +2,8 @@
 
 #include "queijo/ref.h"
 
+#include "uv.h"
+
 #include <atomic>
 #include <condition_variable>
 #include <functional>
@@ -49,6 +51,9 @@ struct Runtime
 
     // Shorthand for global state
     lua_State* GL = nullptr;
+
+    // The thread we are running the VM on, used for debug checks
+    uv_thread_t runtimeThread;
 
     std::mutex dataCopyMutex;
     std::unique_ptr<lua_State, void (*)(lua_State*)> dataCopy;

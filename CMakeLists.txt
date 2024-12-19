@@ -72,7 +72,7 @@ target_link_libraries(Queijo.Fs PRIVATE Queijo.Runtime Luau.VM uv_a)
 target_link_libraries(Queijo.Luau PRIVATE Queijo.Runtime Luau.VM uv_a Luau.Analysis Luau.Ast)
 target_link_libraries(Queijo.Net PRIVATE Queijo.Runtime Luau.VM uv_a ${WOLFSSL_LIBRARY} libcurl)
 target_link_libraries(Queijo.Task PRIVATE Queijo.Runtime Luau.VM uv_a)
-target_link_libraries(Queijo.CLI PRIVATE Luau.CLI.lib Luau.Compiler Luau.Config Luau.CodeGen Luau.VM Queijo.Runtime Queijo.Fs Queijo.Luau Queijo.Net Queijo.Task)
+target_link_libraries(Queijo.CLI PRIVATE Luau.CLI.lib Luau.Compiler Luau.Config Luau.CodeGen Luau.Analysis Luau.VM Queijo.Runtime Queijo.Fs Queijo.Luau Queijo.Net Queijo.Task)
 
 target_compile_options(Queijo.Runtime PRIVATE ${QUEIJO_OPTIONS})
 target_compile_options(Queijo.Fs PRIVATE ${QUEIJO_OPTIONS})

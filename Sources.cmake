@@ -2,6 +2,7 @@ target_sources(Queijo.Runtime PRIVATE
     runtime/include/queijo/ref.h
     runtime/include/queijo/runtime.h
 
+    runtime/src/ref.cpp
     runtime/src/runtime.cpp
 )
 
@@ -37,4 +38,6 @@ target_sources(Queijo.CLI PRIVATE
     cli/require.cpp
     cli/spawn.h
     cli/spawn.cpp
+    cli/tc.h
+    cli/tc.cpp
 )

@@ -194,8 +194,18 @@ int lua_spawn(lua_State* L)
         luaL_error(L, "Module %s did not return a table", file);
 
     lua_setuserdatadtor(L, kTargetFunctionTag, [](lua_State* L, void* userdata) {
-        ((TargetFunction*)userdata)->~TargetFunction();
+        // Current runtime VM is dropping a foreign VM Ref
+        // It has to be released in target runtime, so we copy it over
+        TargetFunction* target = (TargetFunction*)userdata;
+
+        // Schedule references to be removed in target runtime
+        target->runtime->schedule([func = target->func]() mutable {
+            func.reset();
         });
+
+        // Remove the Ref we have in current VM, now it will not cause the actual lua_unref
+        target->~TargetFunction();
+    });
 
     // For each function in the child VM return table, create a wrapper function in main VM which will marshall a call
     lua_createtable(L, 0, 0);

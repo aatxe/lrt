@@ -93,7 +93,7 @@ struct AstSerialize : public Luau::AstVisitor
 
     void serialize(Luau::AstName name)
     {
-        lua_createtable(L, 0, 2);
+        lua_createtable(L, 0, 1);
 
         lua_pushstring(L, name.value);
         lua_setfield(L, -2, "value");

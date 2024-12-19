@@ -1,4 +1,4 @@
-local task = require("./task")
+local task = require("@std/task")
 
 local t = task.create(function()
     return net.getAsync("https://en.wikipedia.org/")

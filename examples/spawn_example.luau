@@ -1,4 +1,4 @@
-local task = require("./task")
+local task = require("@std/task")
 
 print("start")
 

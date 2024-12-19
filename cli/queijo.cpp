@@ -246,6 +246,7 @@ static bool runToCompletion(Runtime& runtime)
     // While there is some C++ or Luau code left to run
     while (!runtime.runningThreads.empty() || runtime.hasContinuations())
     {
+        uv_run(uv_default_loop(), UV_RUN_DEFAULT);
         // Complete all C++ continuations
         std::vector<std::function<void()>> continuations;
 

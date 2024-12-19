@@ -127,9 +127,6 @@ void Runtime::runContinuously()
 
         runToCompletion();
     }
-
-    // Debug
-    printf("Runtime::runContinuously() done\n");
 }
 
 bool Runtime::hasContinuations()

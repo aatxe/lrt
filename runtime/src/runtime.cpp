@@ -35,7 +35,7 @@ Runtime::~Runtime()
 
 bool Runtime::runToCompletion()
 {
-    // While there is some C++ or Luau code left to run
+    // While there is some C++ or Luau code left to run (waiting for something to happen?)
     while (!runningThreads.empty() || hasContinuations() || activeTokens.load() != 0)
     {
         uv_run(uv_default_loop(), UV_RUN_DEFAULT);

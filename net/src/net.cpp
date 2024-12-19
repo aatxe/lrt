@@ -8,7 +8,6 @@
 #include "lualib.h"
 
 #include <string>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -68,27 +67,24 @@ static int getAsync(lua_State* L)
 {
     std::string url = luaL_checkstring(L, 1);
 
-    auto ref = getRefForThread(L);
-    Runtime* runtime = getRuntime(L);
+    auto token = getResumeToken(L);
 
-    // TODO: switch to libuv, add cancellations
-    std::thread thread = std::thread([=] {
+    // TODO: add cancellations
+    token->runtime->runInWorkQueue([=] {
         auto [error, data] = requestData(url);
 
         if (!error.empty())
         {
-            runtime->scheduleLuauError(ref, "network request failed: " + error);
+            token->fail("network request failed: " + error);
         }
         else
         {
-            runtime->scheduleLuauResume(ref, [data = std::move(data)](lua_State* L) {
+            token->complete([data = std::move(data)](lua_State* L) {
                 lua_pushlstring(L, data.data(), data.size());
                 return 1;
             });
         }
     });
-
-    thread.detach();
 
     return lua_yield(L, 0);
 }

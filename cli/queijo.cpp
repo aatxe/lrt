@@ -1,210 +1,51 @@
 #include "Luau/Common.h"
-#include "lua.h"
-#include "lualib.h"
-
 #include "Luau/CodeGen.h"
 #include "Luau/Compiler.h"
 #include "Luau/FileUtils.h"
 #include "Luau/Parser.h"
-#include "Luau/Require.h"
+
+#include "lua.h"
+#include "lualib.h"
 
 #include "queijo/fs.h"
 #include "queijo/net.h"
 #include "queijo/luau.h"
 #include "queijo/ref.h"
 #include "queijo/runtime.h"
+
+#include "options.h"
+#include "require.h"
+#include "spawn.h"
+
 #include "uv.h"
 
 #ifdef _WIN32
 #include <Windows.h>
 #endif
 
-#include <mutex>
 #include <string>
 #include <vector>
 
-static bool codegen = false;
 static int program_argc = 0;
 static char** program_argv = nullptr;
 
-static Runtime runtime;
-
-static Luau::CompileOptions copts()
+static int lua_defer(lua_State* L)
 {
-    Luau::CompileOptions result = {};
-    result.optimizationLevel = 2;
-    result.debugLevel = 2;
-    result.typeInfoLevel = 1;
-    result.coverageLevel = 0;
+    auto runtime = getRuntime(L);
 
-    return result;
+    runtime->runningThreads.push_back({ true, getRefForThread(L), 0 });
+    return lua_yield(L, 0);
 }
 
-static int finishrequire(lua_State* L)
+lua_State* setupState(Runtime& runtime)
 {
-    if (lua_isstring(L, -1))
-        lua_error(L);
+    // Separate VM for data copies
+    runtime.dataCopy.reset(luaL_newstate());
 
-    return 1;
-}
+    runtime.globalState.reset(luaL_newstate());
 
-struct RuntimeRequireContext : public RequireResolver::RequireContext
-{
-    // In the context of the REPL, source is the calling context's chunkname.
-    //
-    // These chunknames have certain prefixes that indicate context. These
-    // are used when displaying debug information (see luaO_chunkid).
-    //
-    // Generally, the '@' prefix is used for filepaths, and the '=' prefix is
-    // used for custom chunknames, such as =stdin.
-    explicit RuntimeRequireContext(std::string source)
-        : source(std::move(source))
-    {
-    }
+    lua_State* L = runtime.globalState.get();
 
-    std::string getPath() override
-    {
-        return source.substr(1);
-    }
-
-    bool isRequireAllowed() override
-    {
-        return true;
-    }
-
-    bool isStdin() override
-    {
-        return source == "=stdin";
-    }
-
-    std::string createNewIdentifer(const std::string& path) override
-    {
-        return "@" + path;
-    }
-
-private:
-    std::string source;
-};
-
-struct RuntimeCacheManager : public RequireResolver::CacheManager
-{
-    explicit RuntimeCacheManager(lua_State* L)
-        : L(L)
-    {
-    }
-
-    bool isCached(const std::string& path) override
-    {
-        luaL_findtable(L, LUA_REGISTRYINDEX, "_MODULES", 1);
-        lua_getfield(L, -1, path.c_str());
-        bool cached = !lua_isnil(L, -1);
-        lua_pop(L, 2);
-
-        if (cached)
-            cacheKey = path;
-
-        return cached;
-    }
-
-    std::string cacheKey;
-
-private:
-    lua_State* L;
-};
-
-struct RuntimeErrorHandler : RequireResolver::ErrorHandler
-{
-    explicit RuntimeErrorHandler(lua_State* L)
-        : L(L)
-    {
-    }
-
-    void reportError(const std::string message) override
-    {
-        luaL_errorL(L, "%s", message.c_str());
-    }
-
-private:
-    lua_State* L;
-};
-
-static int lua_require(lua_State* L)
-{
-    std::string name = luaL_checkstring(L, 1);
-
-    RequireResolver::ResolvedRequire resolvedRequire;
-    {
-        lua_Debug ar;
-        lua_getinfo(L, 1, "s", &ar);
-
-        RuntimeRequireContext requireContext{ar.source};
-        RuntimeCacheManager cacheManager{L};
-        RuntimeErrorHandler errorHandler{L};
-
-        RequireResolver resolver(std::move(name), requireContext, cacheManager, errorHandler);
-
-        resolvedRequire = resolver.resolveRequire(
-            [L, &cacheKey = cacheManager.cacheKey](const RequireResolver::ModuleStatus status)
-            {
-                lua_getfield(L, LUA_REGISTRYINDEX, "_MODULES");
-                if (status == RequireResolver::ModuleStatus::Cached)
-                    lua_getfield(L, -1, cacheKey.c_str());
-            }
-        );
-    }
-
-    if (resolvedRequire.status == RequireResolver::ModuleStatus::Cached)
-        return finishrequire(L);
-
-    // module needs to run in a new thread, isolated from the rest
-    // note: we create ML on main thread so that it doesn't inherit environment of L
-    lua_State* GL = lua_mainthread(L);
-    lua_State* ML = lua_newthread(GL);
-    lua_xmove(GL, L, 1);
-
-    // new thread needs to have the globals sandboxed
-    luaL_sandboxthread(ML);
-
-    // now we can compile & run module on the new thread
-    std::string bytecode = Luau::compile(resolvedRequire.sourceCode, copts());
-    if (luau_load(ML, resolvedRequire.identifier.c_str(), bytecode.data(), bytecode.size(), 0) == 0)
-    {
-        if (codegen)
-        {
-            Luau::CodeGen::CompilationOptions nativeOptions;
-            Luau::CodeGen::compile(ML, -1, nativeOptions);
-        }
-
-        int status = lua_resume(ML, L, 0);
-
-        if (status == 0)
-        {
-            if (lua_gettop(ML) == 0)
-                lua_pushstring(ML, "module must return a value");
-            else if (!lua_istable(ML, -1) && !lua_isfunction(ML, -1))
-                lua_pushstring(ML, "module must return a table or function");
-        }
-        else if (status == LUA_YIELD)
-        {
-            lua_pushstring(ML, "module can not yield");
-        }
-        else if (!lua_isstring(ML, -1))
-        {
-            lua_pushstring(ML, "unknown error while running module");
-        }
-    }
-
-    // there's now a return value on top of ML; L stack: _MODULES ML
-    lua_xmove(ML, L, 1);
-    lua_pushvalue(L, -1);
-    lua_setfield(L, -4, resolvedRequire.absolutePath.c_str());
-
-    // L stack: _MODULES ML result
-    return finishrequire(L);
-}
-
-void setupState(Runtime& runtime, lua_State* L)
-{
     runtime.GL = L;
 
     lua_setthreaddata(L, &runtime);
@@ -216,20 +57,28 @@ void setupState(Runtime& runtime, lua_State* L)
     // register the builtin tables
     luaL_openlibs(L);
 
-    luaopen_fs(L);
-    luaopen_luau(L);
     luaopen_net(L);
+    lua_pop(L, 1);
 
+    luaopen_luau(L);
+    lua_pop(L, 1);
+
+    luaopen_fs(L);
     lua_pop(L, 1);
 
     static const luaL_Reg funcs[] = {
         {"require", lua_require},
+        {"spawn", lua_spawn},
+        {"defer", lua_defer},
         {nullptr, nullptr},
     };
 
     luaL_register(L, "_G", funcs);
+    lua_pop(L, 1);
 
     luaL_sandbox(L);
+
+    return L;
 }
 
 bool setupArguments(lua_State* L, int argc, char** argv)
@@ -239,83 +88,6 @@ bool setupArguments(lua_State* L, int argc, char** argv)
 
     for (int i = 0; i < argc; ++i)
         lua_pushstring(L, argv[i]);
-
-    return true;
-}
-
-static bool runToCompletion(Runtime& runtime)
-{
-    // While there is some C++ or Luau code left to run
-    while (!runtime.runningThreads.empty() || runtime.hasContinuations())
-    {
-        // Complete all C++ continuations
-        std::vector<std::function<void()>> continuations;
-
-        {
-            std::unique_lock lock(runtime.continuationMutex);
-            continuations = std::move(runtime.continuations);
-            runtime.continuations.clear();
-        }
-
-        for (auto&& continuation : continuations)
-            continuation();
-
-        if (runtime.runningThreads.empty())
-            continue;
-
-        auto next = std::move(runtime.runningThreads.front());
-        runtime.runningThreads.erase(runtime.runningThreads.begin());
-
-        next.ref->push(runtime.GL);
-        lua_State* L = lua_tothread(runtime.GL, -1);
-
-        if (L == nullptr)
-        {
-            fprintf(stderr, "Cannot resume a non-thread reference");
-            return false;
-        }
-
-        // We still have 'next' on stack to hold on to thread we are about to run
-        lua_pop(runtime.GL, 1);
-
-        int status = LUA_OK;
-
-        if (!next.success)
-            status = lua_resumeerror(L, nullptr);
-        else
-            status = lua_resume(L, nullptr, next.argumentCount);
-
-        if (status == LUA_YIELD)
-        {
-            int results = lua_gettop(L);
-
-            if (results != 0)
-            {
-                std::string error = "Top level yield cannot return any results";
-                error += "\nstacktrace:\n";
-                error += lua_debugtrace(L);
-                fprintf(stderr, "%s", error.c_str());
-                return false;
-            }
-
-            runtime.runningThreads.push_back({true, getRefForThread(L), 0});
-            continue;
-        }
-
-        if (status != LUA_OK)
-        {
-            std::string error;
-
-            if (const char* str = lua_tostring(L, -1))
-                error = str;
-
-            error += "\nstacktrace:\n";
-            error += lua_debugtrace(L);
-
-            fprintf(stderr, "%s", error.c_str());
-            return false;
-        }
-    }
 
     return true;
 }
@@ -350,7 +122,7 @@ static bool runFile(Runtime& runtime, const char* name, lua_State* GL)
         return false;
     }
 
-    if (codegen)
+    if (getCodegenEnabled())
     {
         Luau::CodeGen::CompilationOptions nativeOptions;
         Luau::CodeGen::compile(L, -1, nativeOptions);
@@ -368,7 +140,7 @@ static bool runFile(Runtime& runtime, const char* name, lua_State* GL)
 
     lua_pop(GL, 1);
 
-    return runToCompletion(runtime);
+    return runtime.runToCompletion();
 }
 
 static void displayHelp(const char* argv0)
@@ -430,12 +202,9 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    std::unique_ptr<lua_State, void (*)(lua_State*)> globalState(luaL_newstate(), lua_close);
-    lua_State* L = globalState.get();
-
     Runtime runtime;
 
-    setupState(runtime, L);
+    lua_State* L = setupState(runtime);
 
     int failed = 0;
 

@@ -471,40 +471,126 @@ struct AstSerialize : public Luau::AstVisitor
 
     void serializeStat(Luau::AstStatBlock* node)
     {
+        lua_createtable(L, 0, preambleSize + 1);
+
+        serializeNodePreamble(node, "block");
+
         serializeStats(node->body);
+        lua_setfield(L, -2, "statements");
     }
 
     void serializeStat(Luau::AstStatIf* node)
     {
+        lua_createtable(L, 0, preambleSize + 5);
+
+        serializeNodePreamble(node, "conditional");
+
+        node->condition->visit(this);
+        lua_setfield(L, -2, "condition");
+
+        node->thenbody->visit(this);
+        lua_setfield(L, -2, "consequent");
+
+        node->elsebody->visit(this);
+        lua_setfield(L, -2, "antecedent");
+
+        if (node->thenLocation)
+            serialize(*node->thenLocation);
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "thenLocation");
+
+        if (node->elseLocation)
+            serialize(*node->elseLocation);
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "elseLocation");
     }
 
     void serializeStat(Luau::AstStatWhile* node)
     {
+        lua_createtable(L, 0, preambleSize + 4);
+
+        serializeNodePreamble(node, "while");
+
+        node->condition->visit(this);
+        lua_setfield(L, -2, "condition");
+
+        node->body->visit(this);
+        lua_setfield(L, -2, "body");
+
+        if (node->hasDo)
+            serialize(node->doLocation);
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "doLocation");
     }
 
     void serializeStat(Luau::AstStatRepeat* node)
     {
+        lua_createtable(L, 0, preambleSize + 2);
+
+        serializeNodePreamble(node, "repeat");
+
+        node->condition->visit(this);
+        lua_setfield(L, -2, "condition");
+
+        node->body->visit(this);
+        lua_setfield(L, -2, "body");
     }
 
     void serializeStat(Luau::AstStatBreak* node)
     {
+        lua_createtable(L, 0, preambleSize);
+
+        serializeNodePreamble(node, "break");
     }
 
     void serializeStat(Luau::AstStatContinue* node)
     {
+        lua_createtable(L, 0, preambleSize);
+
+        serializeNodePreamble(node, "continue");
     }
 
     void serializeStat(Luau::AstStatReturn* node)
     {
+        lua_createtable(L, 0, preambleSize + 1);
+
+        serializeNodePreamble(node, "return");
+
         serializeExprs(node->list);
+        lua_setfield(L, -2, "expressions");
     }
 
     void serializeStat(Luau::AstStatExpr* node)
     {
+        lua_createtable(L, 0, preambleSize + 1);
+
+        serializeNodePreamble(node, "expression");
+
+        node->expr->visit(this);
+        lua_setfield(L, -2, "expression");
     }
 
     void serializeStat(Luau::AstStatLocal* node)
     {
+        lua_createtable(L, 0, preambleSize + 1);
+
+        serializeNodePreamble(node, "local");
+
+        if (node->equalsSignLocation)
+            serialize(*node->equalsSignLocation);
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "equalsSignLocation");
+
+        serializeExprs(node->values);
+        lua_setfield(L, -2, "values");
+
+        // TODO: locals
+        lua_pushnil(L);
+        lua_setfield(L, -2, "variables");
     }
 
     void serializeStat(Luau::AstStatFor* node)

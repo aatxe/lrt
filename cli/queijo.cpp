@@ -449,12 +449,7 @@ static int lua_spawn(lua_State* L)
 
     lua_pop(child->GL, 1);
 
-    // TODO: another place for libuv
-    // FIXME: this strong reference to Runtime prevents it from being freed
-    std::thread thread([child] {
-        child->runContinuously();
-    });
-    thread.detach();
+    child->runContinuously();
 
     return 1;
 }

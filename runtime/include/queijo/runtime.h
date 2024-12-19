@@ -7,6 +7,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 struct ThreadToContinue
@@ -58,6 +59,7 @@ private:
     // TODO: can this be handled by libuv?
     std::atomic<bool> stop;
     std::condition_variable runLoopCv;
+    std::thread runLoopThread;
 };
 
 Runtime* getRuntime(lua_State* L);

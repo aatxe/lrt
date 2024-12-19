@@ -28,6 +28,9 @@ Runtime::~Runtime()
 
         runLoopCv.notify_one();
     }
+
+    if (runLoopThread.joinable())
+        runLoopThread.join();
 }
 
 bool Runtime::runToCompletion()
@@ -114,19 +117,22 @@ bool Runtime::runToCompletion()
 
 void Runtime::runContinuously()
 {
-    while (!stop)
-    {
-        // Block to wait on event
+    // TODO: another place for libuv
+    runLoopThread = std::thread([this] {
+        while (!stop)
         {
-            std::unique_lock lock(continuationMutex);
+            // Block to wait on event
+            {
+                std::unique_lock lock(continuationMutex);
 
-            runLoopCv.wait(lock, [this] {
-                return !continuations.empty() || stop;
-            });
+                runLoopCv.wait(lock, [this] {
+                    return !continuations.empty() || stop;
+                    });
+            }
+
+            runToCompletion();
         }
-
-        runToCompletion();
-    }
+    });
 }
 
 bool Runtime::hasContinuations()

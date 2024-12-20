@@ -39,7 +39,7 @@ local function formatKey(key, seq)
 end
 
 local typeSortOrder = {
-	["boolean"]  =  1,
+    ["boolean"]  =  1,
     ["number"]   =  2,
     ["string"]   =  3,
     ["function"] =  4,

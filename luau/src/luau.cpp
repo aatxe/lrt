@@ -108,6 +108,7 @@ struct AstSerialize : public Luau::AstVisitor
 
         if (lua_isnil(L, -1))
         {
+            lua_pop(L, 1);
             lua_createtable(L, 0, 3);
 
             // set up reference for this local into the local table
@@ -118,7 +119,10 @@ struct AstSerialize : public Luau::AstVisitor
             serialize(local->name);
             lua_setfield(L, -2, "name");
 
-            serialize(local->shadow);
+            if (local->shadow)
+                serialize(local->shadow);
+            else
+                lua_pushnil(L);
             lua_setfield(L, -2, "shadows");
 
             // TODO: types
@@ -265,7 +269,7 @@ struct AstSerialize : public Luau::AstVisitor
         serializeNodePreamble(node, "group");
 
         node->expr->visit(this);
-        lua_setfield(L, -2, "expr");
+        lua_setfield(L, -2, "expression");
     }
 
     void serialize(Luau::AstExprConstantNil* node)
@@ -391,7 +395,8 @@ struct AstSerialize : public Luau::AstVisitor
 
         // TODO: attributes
 
-        serialize(node->self);
+        if (node->self)
+            serialize(node->self);
         lua_setfield(L, -2, "self");
 
         serializeLocals(node->args, node->argLocation ? 1 : 0);
@@ -988,105 +993,122 @@ struct AstSerialize : public Luau::AstVisitor
 
     bool visit(Luau::AstStatBlock* node) override
     {
-        serializeStats(node->body);
+        serializeStat(node);
         return false;
     }
 
     bool visit(Luau::AstStatIf* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatWhile* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatRepeat* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatBreak* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatContinue* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatReturn* node) override
     {
-        serializeExprs(node->list);
-
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatExpr* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatLocal* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatFor* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatForIn* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatAssign* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatCompoundAssign* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatFunction* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatLocalFunction* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatTypeAlias* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatDeclareFunction* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatDeclareGlobal* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatDeclareClass* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstStatError* node) override
     {
-        return true;
+        serializeStat(node);
+        return false;
     }
 
     bool visit(Luau::AstType* node) override

@@ -19,6 +19,10 @@ local function create(f, ...): Task
 end
 
 local function await(t: Task)
+    if not t.co then
+        error(`await: argument 1 is not a task`)
+    end
+
     while t.success == nil do
         defer()
     end
@@ -33,6 +37,12 @@ end
 local function awaitAll(...: Task)
     local tasks = table.pack(...)
     tasks.n = nil
+
+    for i, v in tasks do
+        if not v.co then
+            error(`awaitAll: argument {i} is not a task`)
+        end
+    end
 
     local done = false
 

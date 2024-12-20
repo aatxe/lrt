@@ -8,7 +8,6 @@ static const std::string kQueijoDefinitions = R"QUEIJO_TYPES(
 -- Net api
 declare net: {
     get: (string) -> string,
- -- is this right? I feel like we want a promise here ... 
     getAsync: (string) -> string,
 }
 -- fs api
@@ -24,6 +23,9 @@ declare fs: {
  -- is this right? I feel like we want a promise type here
     readasync : (string) -> string,
 }
+
+-- globals
+declare function spawn(path: string): any
 
 )QUEIJO_TYPES";
 

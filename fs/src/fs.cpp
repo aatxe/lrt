@@ -322,8 +322,8 @@ int writestringtofile(lua_State* L)
 
     // Set up the buffer to write
     int numBytesLeftToWrite = strlen(stringToWrite);
-    uv_buf_t iov;
     int offset = 0;
+    uv_buf_t iov;
     do
     {
         // copy stringToWrite[0], numBytesLeftToWrite into write buffer

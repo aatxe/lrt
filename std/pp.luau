@@ -38,7 +38,7 @@ local function formatKey(key, seq)
 end
 
 local typeSortOrder = {
-    ["boolean"]  =  1,
+	["boolean"]  =  1,
     ["number"]   =  2,
     ["string"]   =  3,
     ["function"] =  4,
@@ -50,7 +50,7 @@ local typeSortOrder = {
     ["nil"]      = 10,
 }
 
-local function traverseTable(dataTable, tableRef, indent)
+local function traverseTable(dataTable, seen, indent)
     local output = ""
 
     local indentStr = string.rep("\t", indent)
@@ -98,11 +98,11 @@ local function traverseTable(dataTable, tableRef, indent)
         end
 
         -- prevents self-referential tables from looping infinitely
-        if tableRef[value] then
+        if seen[value] then
             continue
         end
 
-        tableRef[value] = true
+        seen[value] = true
 
         local hasItems = false
         for key, val in value do
@@ -138,9 +138,9 @@ local function traverseTable(dataTable, tableRef, indent)
 
         output = string.format("%s%s%s{\n%s%s},\n",
                                 output, indentStr, formatKey(key, inSequence),
-                                traverseTable(value, tableRef, indent + 1), indentStr)
+                                traverseTable(value, seen, indent + 1), indentStr)
 
-        tableRef[value] = nil
+        seen[value] = nil
     end
 
     return output

@@ -24,20 +24,21 @@ static Luau::ParseResult parse(std::string& source)
 
     Luau::ParseResult parseResult = Luau::Parser::parse(source.data(), source.size(), names, allocator, options);
 
-    if (parseResult.errors.size() > 0)
-    {
-        fprintf(stderr, "Parse errors were encountered:\n");
-        for (const Luau::ParseError& error : parseResult.errors)
-        {
-            fprintf(stderr, "  %s - %s\n", Luau::toString(error.getLocation()).c_str(), error.getMessage().c_str());
-        }
-        fprintf(stderr, "\n");
-    }
-
     return parseResult;
 }
 
-static Luau::AstExpr* parseExpr(std::string& source)
+struct ExprResult
+{
+    Luau::AstExpr* root;
+    size_t lines = 0;
+
+    std::vector<Luau::HotComment> hotcomments;
+    std::vector<Luau::ParseError> errors;
+
+    std::vector<Luau::Comment> commentLocations;
+};
+
+static ExprResult parseExpr(std::string& source)
 {
     Luau::Allocator allocator;
     Luau::AstNameTable names{allocator};
@@ -50,13 +51,17 @@ static Luau::AstExpr* parseExpr(std::string& source)
 
     try
     {
-        return p.parseExpr();
-    }
-    catch (Luau::ParseError& error)
-    {
-        fprintf(stderr, "  %s - %s\n", Luau::toString(error.getLocation()).c_str(), error.getMessage().c_str());
+        Luau::AstExpr* expr = p.parseExpr();
+        size_t lines = p.lexer.current().location.end.line + (source.size() > 0 && source.data()[source.size() - 1] != '\n');
 
-        return nullptr;
+        return ExprResult{expr, lines, std::move(p.hotcomments), std::move(p.parseErrors), std::move(p.commentLocations)};
+    }
+    catch (Luau::ParseError& err)
+    {
+        // when catching a fatal error, append it to the list of non-fatal errors and return
+        p.parseErrors.push_back(err);
+
+        return ExprResult{nullptr, 0, {}, std::move(p.parseErrors)};
     }
 }
 
@@ -1174,13 +1179,36 @@ static int luau_parseexpr(lua_State* L)
 {
     std::string source = luaL_checkstring(L, 1);
 
-    Luau::AstExpr* result = parseExpr(source);
+    ExprResult result = parseExpr(source);
 
-    if (!result)
-        luaL_error(L, "aaaaaaaa");
+    if (!result.errors.empty())
+    {
+        std::vector<std::string> locationStrings{};
+        locationStrings.reserve(result.errors.size());
+
+        size_t size = 0;
+        for (auto error : result.errors)
+        {
+            locationStrings.emplace_back(Luau::toString(error.getLocation()));
+            size += locationStrings.back().size() + 2 + error.getMessage().size() + 1;
+        }
+
+        std::string fullError;
+        fullError.reserve(size);
+
+        for (size_t i = 0; i < result.errors.size(); i++)
+        {
+            fullError += locationStrings[i];
+            fullError += ": ";
+            fullError += result.errors[i].getMessage();
+            fullError += "\n";
+        }
+
+        luaL_error(L, "parsing failed:\n%s", fullError.c_str());
+    }
 
     AstSerialize serializer{L};
-    serializer.visit(result);
+    serializer.visit(result.root);
 
     return 1;
 }

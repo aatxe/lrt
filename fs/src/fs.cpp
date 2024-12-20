@@ -154,11 +154,10 @@ int read(lua_State* L)
     return 1;
 }
 
-
-static char writeBuffer[4096];
-
 int write(lua_State* L)
 {
+    char writeBuffer[4096];
+
     // Reset the write buffer
     int wbSize = sizeof(writeBuffer);
     memset(writeBuffer, 0, sizeof(writeBuffer));
@@ -168,15 +167,14 @@ int write(lua_State* L)
 
     // Set up the buffer to write
     int numBytesLeftToWrite = strlen(stringToWrite);
-
+    int offset = 0;
     do
     {
-        int offset = 0;
         // copy stringToWrite[0], numBytesLeftToWrite into write buffer
 
         int sizeToWrite = min(wbSize, numBytesLeftToWrite);
         memcpy(writeBuffer, stringToWrite + offset, sizeToWrite);
-        uv_buf_t iov = uv_buf_init(writeBuffer, numBytesLeftToWrite);
+        uv_buf_t iov = uv_buf_init(writeBuffer, sizeToWrite);
 
         uv_fs_t writeReq;
         int bytesWritten = 0;
@@ -256,7 +254,6 @@ void cleanup(char* buffer, int size, const FileHandle& handle)
     uv_fs_close(uv_default_loop(), &closeReq, handle.fileDescriptor, nullptr);
 }
 
-
 int readfiletostring(lua_State* L)
 {
     const char* path = luaL_checkstring(L, 1);
@@ -307,6 +304,7 @@ int readfiletostring(lua_State* L)
 
 int writestringtofile(lua_State* L)
 {
+    char writeBuffer[4096];
 
     const char* path = luaL_checkstring(L, 1);
     const char openMode[] = "w+";
@@ -325,14 +323,14 @@ int writestringtofile(lua_State* L)
     // Set up the buffer to write
     int numBytesLeftToWrite = strlen(stringToWrite);
     uv_buf_t iov;
+    int offset = 0;
     do
     {
-        int offset = 0;
         // copy stringToWrite[0], numBytesLeftToWrite into write buffer
 
         int sizeToWrite = min(wbSize, numBytesLeftToWrite);
         memcpy(writeBuffer, stringToWrite + offset, sizeToWrite);
-        iov = uv_buf_init(writeBuffer, numBytesLeftToWrite);
+        iov = uv_buf_init(writeBuffer, sizeToWrite);
 
         uv_fs_t writeReq;
         int bytesWritten = 0;

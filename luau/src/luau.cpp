@@ -351,7 +351,26 @@ struct AstSerialize : public Luau::AstVisitor
 
         serializeNodePreamble(node, "function");
 
-        // TODO: functions
+        // TODO: attributes
+
+        // TODO: locals
+        lua_pushnil(L);
+        lua_setfield(L, -2, "self");
+
+        // TODO: locals
+        lua_createtable(L, 0, 0);
+        lua_setfield(L, -2, "parameters");
+
+        // TODO: generics, return types, etc.
+
+        if (node->vararg)
+            serialize(node->varargLocation);
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "vargarg");
+
+        node->body->visit(this);
+        lua_setfield(L, -2, "body");
     }
 
     void serialize(Luau::AstExprTable* node)

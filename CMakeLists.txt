@@ -22,12 +22,15 @@ add_subdirectory(extern/luau)
 # libuv setup
 set(LIBUV_BUILD_SHARED OFF)
 set(BUILD_SHARED_LIBS OFF) # why does an option for LIBUV_BUILD_SHARED exist separately
+set(LIBUV_BUILD_TESTS OFF)
+set(LIBUV_BUILD_BENCH OFF)
 add_subdirectory(extern/libuv)
 
 # wolfssl setup
 set(BUILD_SHARED_LIBS OFF)
 set(WOLFSSL_CURL "yes")
 set(WOLFSSL_EXAMPLES "no")
+set(WOLFSSL_CRYPT_TESTS "no")
 add_subdirectory(extern/wolfssl)
 
 # curl setup

@@ -12,6 +12,12 @@ target_sources(Queijo.Fs PRIVATE
     fs/src/fs.cpp
 )
 
+target_sources(Queijo.Luau PRIVATE
+    luau/include/queijo/luau.h
+
+    luau/src/luau.cpp
+)
+
 target_sources(Queijo.Net PRIVATE
     net/include/queijo/net.h
 

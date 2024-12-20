@@ -10,10 +10,6 @@
 /crash-*
 /default.prof*
 /fuzz-*
-/luau
-/luau-tests
-/luau-analyze
-/luau-compile
 __pycache__
 .cache
 .clangd

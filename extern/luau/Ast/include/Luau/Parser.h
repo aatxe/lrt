@@ -62,7 +62,8 @@ public:
         ParseOptions options = ParseOptions()
     );
 
-private:
+// FIXME(queijo): temporary change, we should expose a few more methods here ultimately
+//private:
     struct Name;
     struct Binding;
 

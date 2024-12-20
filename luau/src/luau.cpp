@@ -397,6 +397,8 @@ struct AstSerialize : public Luau::AstVisitor
 
         if (node->self)
             serialize(node->self);
+        else
+            lua_pushnil(L);
         lua_setfield(L, -2, "self");
 
         serializeLocals(node->args, node->argLocation ? 1 : 0);

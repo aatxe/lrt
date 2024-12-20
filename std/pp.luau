@@ -54,7 +54,7 @@ local typeSortOrder = {
 local function traverseTable(dataTable, seen, indent)
     local output = ""
 
-    local indentStr = string.rep("\t", indent)
+    local indentStr = string.rep("  ", indent)
 
     local keys = {}
 

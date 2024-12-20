@@ -119,9 +119,6 @@ void Runtime::runContinuously()
 {
     // TODO: another place for libuv
     runLoopThread = std::thread([this] {
-        // This runtime is now running the VM on this thread only
-        runtimeThread = uv_thread_self();
-
         while (!stop)
         {
             // Block to wait on event

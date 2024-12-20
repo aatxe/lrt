@@ -1,15 +1,16 @@
 local isPrimitiveType = {string = true, number = true, boolean = true}
 
 local function isPrimitiveArray(array)
-local max, n = 0, 0
+	local max, n = 0, 0
 
-for key, value in array do
-	if typeof(key) ~= "number" then return false end
-    if key <= 0 then return false end
-    if not isPrimitiveType[typeof(value)] then return false end
+	for key, value in array do
+		if typeof(key) ~= "number" then return false end
+		if key <= 0 then return false end
+		if not isPrimitiveType[typeof(value)] then return false end
 
-    max = if key > max then key else max
-	n = n + 1
+		max = if key > max then key else max
+		n = n + 1
+	end
 
     return n == max
 end

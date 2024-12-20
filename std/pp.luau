@@ -65,17 +65,17 @@ local function traverseTable(dataTable, seen, indent)
     end
 
     table.sort(keys, function(a,b)
-                    local typeofTableA, typeofTableB = typeof(dataTable[a]), typeof(dataTable[b])
+        local typeofTableA, typeofTableB = typeof(dataTable[a]), typeof(dataTable[b])
 
-                    if typeofTableA ~= typeofTableB then
-                        return typeSortOrder[typeofTableA] < typeSortOrder[typeofTableB]
-                    end
+        if typeofTableA ~= typeofTableB then
+            return typeSortOrder[typeofTableA] < typeSortOrder[typeofTableB]
+        end
 
-                    if typeof(a) == "number" then
-                        return a < b
-                    end
+        if typeof(a) == "number" then
+            return a < b
+        end
 
-                    return tostring(a) < tostring(b)
+        return tostring(a) < tostring(b)
     end)
 
     local inSequence = false

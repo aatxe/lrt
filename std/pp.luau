@@ -71,7 +71,7 @@ local function traverseTable(dataTable, seen, indent)
             return typeSortOrder[typeofTableA] < typeSortOrder[typeofTableB]
         end
 
-        if typeof(a) == "number" then
+        if typeof(a) == "number" and typeof(b) == "number" then
             return a < b
         end
 

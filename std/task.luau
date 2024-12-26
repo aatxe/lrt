@@ -5,7 +5,7 @@ export type Task = {
 }
 
 local function create(f, ...): Task
-    local data: Task = {}
+    local data = {}
 
     data.co = coroutine.create(function(...)
         local success, result = pcall(f, ...)

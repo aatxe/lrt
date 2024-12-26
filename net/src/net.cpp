@@ -50,7 +50,7 @@ static std::pair<std::string, std::vector<char>> requestData(const std::string& 
     return { "", data };
 }
 
-static int get(lua_State* L)
+int get(lua_State* L)
 {
     std::string url = luaL_checkstring(L, 1);
 
@@ -63,7 +63,7 @@ static int get(lua_State* L)
     return 1;
 }
 
-static int getAsync(lua_State* L)
+int getAsync(lua_State* L)
 {
     std::string url = luaL_checkstring(L, 1);
 
@@ -89,12 +89,7 @@ static int getAsync(lua_State* L)
     return lua_yield(L, 0);
 }
 
-static const luaL_Reg lib[] = {
-    {"get", get},
-    {"getAsync", getAsync},
-    {nullptr, nullptr},
-};
-}
+} // namespace net
 
 struct CurlHolder
 {
@@ -115,10 +110,16 @@ static CurlHolder& globalCurlInit()
     return holder;
 }
 
-int luaopen_net(lua_State* L)
+int luainit_net(lua_State* L)
 {
     globalCurlInit();
 
+    return 0;
+}
+
+int luaopen_net(lua_State* L)
+{
+    luainit_net(L);
     luaL_register(L, "net", net::lib);
 
     return 1;

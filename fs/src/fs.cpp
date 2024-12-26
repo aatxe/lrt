@@ -17,6 +17,9 @@
 #include <map>
 using namespace std;
 
+namespace fs
+{
+
 int setFlags(const char* c, int* openFlags, int* modeFlags)
 {
     for (const char* it = c; *it != '\0'; it++)
@@ -441,7 +444,7 @@ int readasync(lua_State* L)
 
             // Push the result buffer onto the stack
             info->token->complete(
-                [data = std::move(resultData)](lua_State* L) 
+                [data = std::move(resultData)](lua_State* L)
                 {
                     lua_pushlstring(L, data.data(), data.size());
                     return 1;
@@ -460,8 +463,10 @@ int readasync(lua_State* L)
     return lua_yield(L, 0);
 }
 
+} // namespace fs
+
 int luaopen_fs(lua_State* L)
 {
-    luaL_register(L, "fs", fslib);
+    luaL_register(L, "fs", fs::lib);
     return 1;
 }

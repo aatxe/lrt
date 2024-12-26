@@ -3,6 +3,11 @@
 #include "lua.h"
 #include "lualib.h"
 
+int luaopen_fs(lua_State* L);
+
+namespace fs
+{
+
 // TODO: add the ability to open as bytes
 /* Takes  path: string, a mode: 'r|a|w|x|+' (defaulting to r when omitted)
    Returns a table representing a handle to the file the state of a file {fd : number, error : ...}
@@ -26,7 +31,7 @@ int writestringtofile(lua_State* L);
 /* Reads a file without blocking */
 int readasync(lua_State* L);
 
-static const luaL_Reg fslib[] = {
+static const luaL_Reg lib[] = {
     /* Manual control apis - you are responsible for calling close / open*/
     {"open", open},
     {"read", read},
@@ -39,4 +44,4 @@ static const luaL_Reg fslib[] = {
     {NULL, NULL},
 };
 
-int luaopen_fs(lua_State* L);
+} // namespace fs

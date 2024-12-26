@@ -53,7 +53,7 @@ add_subdirectory(extern/curl)
 #
 
 add_executable(Queijo.CLI)
-set_target_properties(Queijo.CLI PROPERTIES OUTPUT_NAME queijo)
+set_target_properties(Queijo.CLI PROPERTIES OUTPUT_NAME lrt)
 
 set(LIBUV_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/extern/libuv/include)
 

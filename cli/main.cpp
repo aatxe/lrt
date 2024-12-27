@@ -58,14 +58,16 @@ lua_State* setupState(Runtime& runtime)
     // register the builtin tables
     luaL_openlibs(L);
 
-    luaopen_fs(L);
-    lua_pop(L, 1);
+    luaL_findtable(L, LUA_REGISTRYINDEX, "_MODULES", 1);
 
-    luaopen_net(L);
-    lua_pop(L, 1);
+    lrtopen_fs(L);
+    lua_setfield(L, -2, "@lrt/fs");
 
-    luaopen_luau(L);
-    lua_pop(L, 1);
+    lrtopen_net(L);
+    lua_setfield(L, -2, "@lrt/net");
+
+    lrtopen_luau(L);
+    lua_setfield(L, -2, "@lrt/luau");
 
     static const luaL_Reg funcs[] = {
         {"require", lua_require},

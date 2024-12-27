@@ -1,5 +1,6 @@
 #include "require.h"
 
+#include "Luau/StringUtils.h"
 #include "options.h"
 
 #include "lua.h"
@@ -100,6 +101,32 @@ private:
 static int lua_requireInternal(lua_State* L, std::string name, std::string context)
 {
     RequireResolver::ResolvedRequire resolvedRequire;
+
+    if (name.rfind("@lrt/", 0) == 0)
+    {
+        resolvedRequire.identifier = name;
+        resolvedRequire.absolutePath = name;
+
+        lua_getfield(L, LUA_REGISTRYINDEX, "_MODULES");
+        lua_getfield(L, -1, name.c_str());
+
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 1);
+            lua_pushfstringL(L, "no luau runtime library: %s", name.c_str());
+            resolvedRequire.status = RequireResolver::ModuleStatus::ErrorReported;
+            resolvedRequire.sourceCode = Luau::format("return error('no luau runtime library: %s')", name.c_str());
+        }
+        else
+        {
+            resolvedRequire.status = RequireResolver::ModuleStatus::Cached;
+            // FIXME: we could probably map this to a definition file at least
+            resolvedRequire.sourceCode = "";
+        }
+
+        return finishrequire(L);
+    }
+    else
     {
         RuntimeRequireContext requireContext{ context };
         RuntimeCacheManager cacheManager{ L };

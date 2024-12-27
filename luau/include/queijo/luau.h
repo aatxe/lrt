@@ -3,7 +3,10 @@
 #include "lua.h"
 #include "lualib.h"
 
+// open the library as a standard global luau library
 int luaopen_luau(lua_State* L);
+// open the library as a table on top of the stack
+int lrtopen_luau(lua_State* L);
 
 namespace luau {
 

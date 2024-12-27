@@ -3,8 +3,10 @@
 #include "lua.h"
 #include "lualib.h"
 
-int luainit_net(lua_State* L);
+// open the library as a standard global luau library
 int luaopen_net(lua_State* L);
+// open the library as a table on top of the stack
+int lrtopen_net(lua_State* L);
 
 namespace net
 {
@@ -19,4 +21,4 @@ static const luaL_Reg lib[] = {
     {nullptr, nullptr},
 };
 
-}
+} // namespace net

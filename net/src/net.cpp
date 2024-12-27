@@ -110,17 +110,29 @@ static CurlHolder& globalCurlInit()
     return holder;
 }
 
-int luainit_net(lua_State* L)
+int luaopen_net(lua_State* L)
 {
     globalCurlInit();
 
-    return 0;
+    luaL_register(L, "net", net::lib);
+
+    return 1;
 }
 
-int luaopen_net(lua_State* L)
+int lrtopen_net(lua_State* L)
 {
-    luainit_net(L);
-    luaL_register(L, "net", net::lib);
+    globalCurlInit();
+
+    lua_createtable(L, 0, std::size(net::lib));
+
+    for (auto& [name, func] : net::lib)
+    {
+        if (!name || !func)
+            break;
+
+        lua_pushcfunction(L, func, name);
+        lua_setfield(L, -2, name);
+    }
 
     return 1;
 }

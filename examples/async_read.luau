@@ -1,5 +1,7 @@
+local fs = require("@lrt/fs")
 local task = require("@std/task")
--- blocking 
+
+-- blocking
 local f = fs.open("temp", "w+")
 local x = "This is a string I am writing to a file"
 fs.write(f, x)
@@ -12,5 +14,3 @@ end)
 local t2 = task.await(t)
 print(t2)
 print(t2 == x)
-
-

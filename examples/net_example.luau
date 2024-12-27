@@ -1,3 +1,5 @@
+local net = require("@lrt/net")
+
 local task = require("@std/task")
 
 local t = task.create(function()

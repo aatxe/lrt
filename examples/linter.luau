@@ -1,3 +1,6 @@
+local fs = require("@lrt/fs")
+local luau = require("@lrt/luau")
+
 local pp = require("@std/pp")
 
 local function select<T>(node, predicate: ({[string]: any}) -> T?): { T }

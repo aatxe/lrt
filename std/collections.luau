@@ -1,3 +1,6 @@
+export type Array<T> = {T}
+export type Dictionary<T> = {[string]: T}
+
 local function map<K, A, B>(table: {[K]: A}, f: (A) -> B): {[K]: B}
     local new = {}
 

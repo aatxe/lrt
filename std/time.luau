@@ -16,6 +16,9 @@ type DurationData = {
 local Duration = {}
 Duration.__index = Duration
 
+type DurationInterface = typeof(Duration)
+export type Duration = typeof(setmetatable({} :: DurationData, {} :: DurationInterface))
+
 function Duration.new(seconds: number, nanoseconds: number): Duration
     local self = {
         seconds = seconds,
@@ -160,9 +163,6 @@ end
 function Duration.__tostring(self: Duration): string
     return string.format("%d.%09d", self.seconds, self.nanoseconds)
 end
-
-type DurationInterface = typeof(Duration)
-export type Duration = typeof(setmetatable({} :: DurationData, {} :: DurationInterface))
 
 return {
     Duration = Duration,

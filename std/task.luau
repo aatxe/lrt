@@ -1,10 +1,10 @@
-export type Task = {
+export type task = {
     success: boolean?,
     result: any,
     co: thread
 }
 
-local function create(f, ...): Task
+local function create(f, ...): task
     local data = {}
 
     data.co = coroutine.create(function(...)
@@ -18,7 +18,7 @@ local function create(f, ...): Task
     return data
 end
 
-local function await(t: Task)
+local function await(t: task)
     if not t.co then
         error(`await: argument 1 is not a task`)
     end
@@ -34,7 +34,7 @@ local function await(t: Task)
     end
 end
 
-local function awaitAll(...: Task)
+local function awaitall(...: task)
     local tasks = table.pack(...)
     tasks.n = nil
 
@@ -72,5 +72,5 @@ end
 return {
     create = create,
     await = await,
-    awaitAll = awaitAll,
+    awaitall = awaitall,
 }

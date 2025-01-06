@@ -43,7 +43,7 @@ do
 
     local s1, s2, s3 = task.create(vm1.fib, 33), task.create(vm1.fib, 33), task.create(vm1.fib, 33)
 
-    print("fib(33):", task.awaitAll(s1, s2, s3))
+    print("fib(33):", task.awaitall(s1, s2, s3))
 
     print("3 serial fibs in", os.clock() - start)
 end
@@ -53,7 +53,7 @@ do
 
     local p1, p2, p3 = task.create(vm1.fib, 33), task.create(vm2.fib, 33), task.create(vm3.fib, 33)
 
-    print("fib(33):", task.awaitAll(p1, p2, p3))
+    print("fib(33):", task.awaitall(p1, p2, p3))
 
     print("3 parallel fibs in", os.clock() - start)
 end

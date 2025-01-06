@@ -53,9 +53,9 @@ local function parallelMergeSort(t, comp)
         table.insert(slices, task.create(threads[i].sort, getslice(t, i, threadCount)))
     end
 
-    local tomerge = table.pack(task.awaitAll(table.unpack(slices)))
+    local tomerge = table.pack(task.awaitall(table.unpack(slices)))
     tomerge.n = nil
-    
+
     while #tomerge > 1 do
         local next = {}
         for i = 1, #tomerge, 2 do

@@ -8,7 +8,7 @@ local MINS_PER_HOUR = 60
 local HOURS_PER_DAY = 24
 local DAYS_PER_WEEK = 7
 
-type DurationData = {
+type durationdata = {
     seconds: number,
     nanoseconds: number,
 }
@@ -16,10 +16,10 @@ type DurationData = {
 local duration = {}
 duration.__index = duration
 
-type DurationInterface = typeof(duration)
-export type Duration = typeof(setmetatable({} :: DurationData, {} :: DurationInterface))
+type durationinterface = typeof(duration)
+export type duration = typeof(setmetatable({} :: durationdata, {} :: durationinterface))
 
-function duration.create(seconds: number, nanoseconds: number): Duration
+function duration.create(seconds: number, nanoseconds: number): duration
     local self = {
         seconds = seconds,
         nanoseconds = nanoseconds,
@@ -28,76 +28,76 @@ function duration.create(seconds: number, nanoseconds: number): Duration
     return setmetatable(self, duration)
 end
 
-function duration.seconds(seconds: number): Duration
+function duration.seconds(seconds: number): duration
     return duration.create(seconds, 0)
 end
 
-function duration.milliseconds(milliseconds: number): Duration
+function duration.milliseconds(milliseconds: number): duration
     local seconds = math.floor(milliseconds / MILLIS_PER_SEC)
     local nanoseconds = (milliseconds % MILLIS_PER_SEC) * NANOS_PER_MILLI
 
     return duration.create(seconds, nanoseconds)
 end
 
-function duration.microseconds(microseconds: number): Duration
+function duration.microseconds(microseconds: number): duration
     local seconds = math.floor(microseconds / MICROS_PER_SEC)
     local nanoseconds = (microseconds % MICROS_PER_SEC) * NANOS_PER_MICRO
 
     return duration.create(seconds, nanoseconds)
 end
 
-function duration.nanoseconds(nanoseconds: number): Duration
+function duration.nanoseconds(nanoseconds: number): duration
     local seconds = math.floor(nanoseconds / NANOS_PER_SEC)
     local nanosecondsRemaining = nanoseconds % NANOS_PER_SEC
 
     return duration.create(seconds, nanosecondsRemaining)
 end
 
-function duration.minutes(minutes: number): Duration
+function duration.minutes(minutes: number): duration
     return duration.create(minutes * SECS_PER_MINUTE, 0)
 end
 
-function duration.hours(hours: number): Duration
+function duration.hours(hours: number): duration
     return duration.create(hours * MINS_PER_HOUR * SECS_PER_MINUTE, 0)
 end
 
-function duration.days(days: number): Duration
+function duration.days(days: number): duration
     return duration.create(days * HOURS_PER_DAY * MINS_PER_HOUR * SECS_PER_MINUTE, 0)
 end
 
-function duration.weeks(weeks: number): Duration
+function duration.weeks(weeks: number): duration
     return duration.create(weeks * DAYS_PER_WEEK * HOURS_PER_DAY * MINS_PER_HOUR * SECS_PER_MINUTE, 0)
 end
 
-function duration.subsecmillis(self: Duration): number
+function duration.subsecmillis(self: duration): number
     return math.floor(self.nanoseconds / NANOS_PER_MILLI)
 end
 
-function duration.subsecmicros(self: Duration): number
+function duration.subsecmicros(self: duration): number
     return math.floor(self.nanoseconds / NANOS_PER_MICRO)
 end
 
-function duration.subsecnanos(self: Duration): number
+function duration.subsecnanos(self: duration): number
     return self.nanoseconds
 end
 
-function duration.toseconds(self: Duration): number
+function duration.toseconds(self: duration): number
     return self.seconds + self.nanoseconds / NANOS_PER_SEC
 end
 
-function duration.tomilliseconds(self: Duration): number
+function duration.tomilliseconds(self: duration): number
     return self.seconds * MILLIS_PER_SEC + self:subsecmillis()
 end
 
-function duration.tomicroseconds(self: Duration): number
+function duration.tomicroseconds(self: duration): number
     return self.seconds * MICROS_PER_SEC + self:subsecmicros()
 end
 
-function duration.tonanoseconds(self: Duration): number
+function duration.tonanoseconds(self: duration): number
     return self.seconds * NANOS_PER_SEC + self:subsecnanos()
 end
 
-function duration.__add(a: Duration, b: Duration): Duration
+function duration.__add(a: duration, b: duration): duration
     local seconds = a.seconds + b.seconds
     local nanoseconds = a.nanoseconds + b.nanoseconds
 
@@ -109,7 +109,7 @@ function duration.__add(a: Duration, b: Duration): Duration
     return duration.create(seconds, nanoseconds)
 end
 
-function duration.__sub(a: Duration, b: Duration): Duration
+function duration.__sub(a: duration, b: duration): duration
     local seconds = a.seconds - b.seconds
     local nanoseconds = a.nanoseconds - b.nanoseconds
 
@@ -121,7 +121,7 @@ function duration.__sub(a: Duration, b: Duration): Duration
     return duration.create(seconds, nanoseconds)
 end
 
-function duration.__mul(a: Duration, b: number): Duration
+function duration.__mul(a: duration, b: number): duration
     local seconds = a.seconds * b
     local nanoseconds = a.nanoseconds * b
 
@@ -131,7 +131,7 @@ function duration.__mul(a: Duration, b: number): Duration
     return duration.create(seconds, nanoseconds)
 end
 
-function duration.__div(a: Duration, b: number): Duration
+function duration.__div(a: duration, b: number): duration
     local seconds, extraSeconds = a.seconds / b, a.seconds % b
     local nanoseconds, extraNanos = a.nanoseconds / b, a.nanoseconds % b
 
@@ -140,11 +140,11 @@ function duration.__div(a: Duration, b: number): Duration
     return duration.create(seconds, nanoseconds)
 end
 
-function duration.__eq(a: Duration, b: Duration): boolean
+function duration.__eq(a: duration, b: duration): boolean
     return a.seconds == b.seconds and a.nanoseconds == b.nanoseconds
 end
 
-function duration.__lt(a: Duration, b: Duration): boolean
+function duration.__lt(a: duration, b: duration): boolean
     if a.seconds == b.seconds then
         return a.nanoseconds < b.nanoseconds
     end
@@ -152,7 +152,7 @@ function duration.__lt(a: Duration, b: Duration): boolean
     return a.seconds < b.seconds
 end
 
-function duration.__le(a: Duration, b: Duration): boolean
+function duration.__le(a: duration, b: duration): boolean
     if a.seconds == b.seconds then
         return a.nanoseconds <= b.nanoseconds
     end
@@ -160,7 +160,7 @@ function duration.__le(a: Duration, b: Duration): boolean
     return a.seconds <= b.seconds
 end
 
-function duration.__tostring(self: Duration): string
+function duration.__tostring(self: duration): string
     return string.format("%d.%09d", self.seconds, self.nanoseconds)
 end
 

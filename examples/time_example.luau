@@ -1,7 +1,7 @@
 local time = require("@std/time")
-local Duration = time.Duration
+local duration = time.duration
 
-local fiveSeconds = Duration.fromSecs(5)
+local fiveSeconds = duration.seconds(5)
 local tenSeconds = fiveSeconds * 2
 local fifteenSeconds = fiveSeconds + tenSeconds
 
@@ -12,10 +12,10 @@ print(fifteenSeconds)
 print(fiveSeconds < tenSeconds)
 print (fifteenSeconds > tenSeconds)
 
-local randomNanos = Duration.fromNanos(25038)
+local randomNanos = duration.nanoseconds(25038)
 print(randomNanos)
 
-local randomMillis = Duration.fromMillis(25038)
+local randomMillis = duration.milliseconds(25038)
 print(randomMillis)
 
 print(randomMillis < randomNanos)

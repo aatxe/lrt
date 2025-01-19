@@ -13,6 +13,7 @@
 #include <sys/fcntl.h> // on mac we do this
 #endif
 #include <sys/stat.h>
+#include <string>
 #include <stdlib.h>
 #include <map>
 using namespace std;

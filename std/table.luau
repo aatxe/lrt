@@ -34,7 +34,24 @@ local function fold<K, V, A>(table: {[K]: V}, f: (A, V) -> A, initial: A): A
 end
 
 return {
+    -- std extension for table
     map = map,
     filter = filter,
     fold = fold,
+
+    -- re-exports of the table library
+    clear = table.clear,
+    clone = table.clone,
+    concat = table.concat,
+    create = table.create,
+    find = table.find,
+    freeze = table.freeze,
+    insert = table.insert,
+    isfrozen = table.isfrozen,
+    maxn = table.maxn,
+    move = table.move,
+    pack = table.pack,
+    remove = table.remove,
+    sort = table.sort,
+    unpack = table.unpack,
 }

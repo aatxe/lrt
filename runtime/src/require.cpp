@@ -1,7 +1,6 @@
-#include "require.h"
+#include "queijo/require.h"
 
-#include "Luau/StringUtils.h"
-#include "options.h"
+#include "queijo/options.h"
 
 #include "lua.h"
 #include "lualib.h"
@@ -9,6 +8,7 @@
 #include "Luau/Compiler.h"
 #include "Luau/CodeGen.h"
 #include "Luau/Require.h"
+#include "Luau/StringUtils.h"
 
 static int finishrequire(lua_State* L)
 {

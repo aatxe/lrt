@@ -1,8 +1,12 @@
 target_sources(Queijo.Runtime PRIVATE
+    runtime/include/queijo/options.h
     runtime/include/queijo/ref.h
+    runtime/include/queijo/require.h
     runtime/include/queijo/runtime.h
 
+    runtime/src/options.cpp
     runtime/src/ref.cpp
+    runtime/src/require.cpp
     runtime/src/runtime.cpp
 )
 
@@ -31,11 +35,7 @@ target_sources(Queijo.Task PRIVATE
 )
 
 target_sources(Queijo.CLI PRIVATE
-    cli/options.h
-    cli/options.cpp
     cli/main.cpp
-    cli/require.h
-    cli/require.cpp
     cli/spawn.h
     cli/spawn.cpp
     cli/tc.h

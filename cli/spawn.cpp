@@ -1,7 +1,6 @@
 #include "spawn.h"
 
-#include "require.h"
-
+#include "queijo/require.h"
 #include "queijo/runtime.h"
 
 #include <memory>

@@ -1,4 +1,4 @@
-#include "options.h"
+#include "queijo/options.h"
 
 // TODO: this is never set to true today
 static bool codegen = false;

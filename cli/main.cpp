@@ -10,12 +10,12 @@
 #include "queijo/fs.h"
 #include "queijo/luau.h"
 #include "queijo/net.h"
-#include "queijo/task.h"
+#include "queijo/options.h"
 #include "queijo/ref.h"
+#include "queijo/require.h"
 #include "queijo/runtime.h"
+#include "queijo/task.h"
 
-#include "options.h"
-#include "require.h"
 #include "spawn.h"
 #include "tc.h"
 

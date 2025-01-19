@@ -70,7 +70,7 @@ target_include_directories(Queijo.Luau PUBLIC luau/include ${LIBUV_INCLUDE_DIR})
 target_include_directories(Queijo.Net PUBLIC net/include ${LIBUV_INCLUDE_DIR})
 target_include_directories(Queijo.Task PUBLIC task/include ${LIBUV_INCLUDE_DIR})
 
-target_link_libraries(Queijo.Runtime PRIVATE Luau.VM uv_a)
+target_link_libraries(Queijo.Runtime PRIVATE Luau.CLI.lib Luau.Compiler Luau.Config Luau.CodeGen Luau.VM uv_a)
 target_link_libraries(Queijo.Fs PRIVATE Queijo.Runtime Luau.VM uv_a)
 target_link_libraries(Queijo.Luau PRIVATE Queijo.Runtime Luau.VM uv_a Luau.Analysis Luau.Ast)
 target_link_libraries(Queijo.Net PRIVATE Queijo.Runtime Luau.VM uv_a ${WOLFSSL_LIBRARY} libcurl)

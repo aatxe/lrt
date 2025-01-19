@@ -4,6 +4,7 @@
 
 #include "uv.h"
 
+#include <string>
 #include <assert.h>
 
 static void lua_close_checked(lua_State* L)

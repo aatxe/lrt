@@ -7,6 +7,6 @@
 	remote = git@github.com:luau-lang/luau.git
 	branch = master
 	commit = 8f94786ceb5e34ad50a1ddcfae26c4dce862bdb7
-	parent = f42c5f620ff9d08787090e772e3a7b15dc9ae655
+	parent = 4773900a43385016f5f8e13aa62efb0d033d4d6f
 	method = merge
 	cmdver = 0.4.9

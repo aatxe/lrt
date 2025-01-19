@@ -6,6 +6,7 @@
 
 #include "lua.h"
 #include "lualib.h"
+#include "uv.h"
 
 #include "queijo/fs.h"
 #include "queijo/luau.h"
@@ -16,10 +17,7 @@
 #include "queijo/runtime.h"
 #include "queijo/task.h"
 
-#include "spawn.h"
 #include "tc.h"
-
-#include "uv.h"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -67,7 +65,6 @@ lua_State* setupState(Runtime& runtime)
 
     static const luaL_Reg funcs[] = {
         {"require", lua_require},
-        {"spawn", lua_spawn},
         {nullptr, nullptr},
     };
 

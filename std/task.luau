@@ -1,3 +1,5 @@
+local task = require("@lrt/task")
+
 export type task = {
     success: boolean?,
     result: any,
@@ -24,7 +26,7 @@ local function await(t: task)
     end
 
     while t.success == nil do
-        defer()
+        task.defer()
     end
 
     if t.success then
@@ -51,7 +53,7 @@ local function awaitall(...: task)
         for i, v in tasks do
             if v.success == nil then
                 done = false
-                defer()
+                task.defer()
             end
         end
     end

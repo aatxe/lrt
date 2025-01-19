@@ -8,8 +8,9 @@
 #include "lualib.h"
 
 #include "queijo/fs.h"
-#include "queijo/net.h"
 #include "queijo/luau.h"
+#include "queijo/net.h"
+#include "queijo/task.h"
 #include "queijo/ref.h"
 #include "queijo/runtime.h"
 
@@ -29,14 +30,6 @@
 
 static int program_argc = 0;
 static char** program_argv = nullptr;
-
-static int lua_defer(lua_State* L)
-{
-    auto runtime = getRuntime(L);
-
-    runtime->runningThreads.push_back({ true, getRefForThread(L), 0 });
-    return lua_yield(L, 0);
-}
 
 lua_State* setupState(Runtime& runtime)
 {
@@ -63,16 +56,18 @@ lua_State* setupState(Runtime& runtime)
     lrtopen_fs(L);
     lua_setfield(L, -2, "@lrt/fs");
 
+    lrtopen_luau(L);
+    lua_setfield(L, -2, "@lrt/luau");
+
     lrtopen_net(L);
     lua_setfield(L, -2, "@lrt/net");
 
-    lrtopen_luau(L);
-    lua_setfield(L, -2, "@lrt/luau");
+    lrtopen_task(L);
+    lua_setfield(L, -2, "@lrt/task");
 
     static const luaL_Reg funcs[] = {
         {"require", lua_require},
         {"spawn", lua_spawn},
-        {"defer", lua_defer},
         {nullptr, nullptr},
     };
 

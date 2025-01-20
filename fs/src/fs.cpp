@@ -94,23 +94,28 @@ void createFileHandle(lua_State* L, const FileHandle& toCreate)
     setfield(L, "err", toCreate.errcode);
 }
 
-void unpackFileHandle(lua_State* L, FileHandle& result)
+FileHandle unpackFileHandle(lua_State* L)
 {
+    FileHandle result;
+
     luaL_checktype(L, 1, LUA_TTABLE);
     lua_getfield(L, 1, "fd");
     lua_getfield(L, 1, "err");
+
     ssize_t fd = luaL_checkinteger(L, -2);
     int err = luaL_checknumber(L, -1);
     result.fileDescriptor = fd;
     result.errcode = err;
+
     lua_pop(L, 2); // we got the args by value, so we can clean up the stack here
+
+    return result;
 }
 
 int close(lua_State* L)
 {
     lua_settop(L, 1);
-    FileHandle file;
-    unpackFileHandle(L, file);
+    FileHandle file = unpackFileHandle(L);
 
     uv_fs_t closeReq;
     uv_fs_close(uv_default_loop(), &closeReq, file.fileDescriptor, nullptr);
@@ -123,8 +128,7 @@ int read(lua_State* L)
     memset(readBuffer, 0, sizeof(readBuffer));
     // discard any extra arguments passed in
     lua_settop(L, 1);
-    FileHandle file;
-    unpackFileHandle(L, file);
+    FileHandle file = unpackFileHandle(L);
 
     int numBytesRead = 0;
     int totalBytesRead = 0;
@@ -165,8 +169,7 @@ int write(lua_State* L)
     // Reset the write buffer
     int wbSize = sizeof(writeBuffer);
     memset(writeBuffer, 0, sizeof(writeBuffer));
-    FileHandle file;
-    unpackFileHandle(L, file);
+    FileHandle file = unpackFileHandle(L);
     const char* stringToWrite = luaL_checkstring(L, 2);
 
     // Set up the buffer to write

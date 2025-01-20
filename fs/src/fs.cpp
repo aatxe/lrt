@@ -8,7 +8,7 @@
 #include "queijo/runtime.h"
 
 #include <cstdio>
-#include <cstring>
+#include <string>
 #include <map>
 #include <memory>
 #ifdef _WIN32
@@ -194,25 +194,22 @@ int write(lua_State* L)
     return 0;
 }
 // Returns 0 on error, 1 otherwise
-int openHelper(lua_State* L, const char* path, const char* mode, int* openFlags, FileHandle& outHandle)
+std::optional<FileHandle> openHelper(lua_State* L, const char* path, const char* mode, int* openFlags)
 {
     int modeFlags = 0x0000;
 
     if (setFlags(mode, openFlags, &modeFlags))
-    {
-        return 0;
-    }
+        return std::nullopt;
+
     uv_fs_t openReq;
     int errcode = uv_fs_open(uv_default_loop(), &openReq, path, *openFlags, modeFlags, nullptr);
     if (openReq.result < 0)
     {
         printf("Error opening file %s\n", path);
-        return 0;
+        return std::nullopt;
     }
-    FileHandle handle{openReq.result, errcode};
-    outHandle.fileDescriptor = openReq.result;
-    outHandle.errcode = errcode;
-    return 1;
+
+    return FileHandle{openReq.result, errcode};
 }
 
 int open(lua_State* L)
@@ -234,10 +231,9 @@ int open(lua_State* L)
     }
 
     const char* mode = luaL_checkstring(L, 2);
-    FileHandle result;
-    if (openHelper(L, path, mode, &openFlags, result))
+    if (std::optional<FileHandle> result = openHelper(L, path, mode, &openFlags))
     {
-        createFileHandle(L, result);
+        createFileHandle(L, *result);
         return 1;
     }
 
@@ -256,8 +252,8 @@ int readfiletostring(lua_State* L)
     const char* path = luaL_checkstring(L, 1);
     const char openMode[] = "r";
     int openFlags = 0x0000;
-    FileHandle handle;
-    if (!openHelper(L, path, openMode, &openFlags, handle))
+    std::optional<FileHandle> handle = openHelper(L, path, openMode, &openFlags);
+    if (!handle)
     {
         printf("Error opening file for reading at %s\n", path);
         return 0;
@@ -275,7 +271,7 @@ int readfiletostring(lua_State* L)
     luaL_buffinit(L, &resultBuf);
     do
     {
-        uv_fs_read(uv_default_loop(), &readReq, handle.fileDescriptor, &iov, 1, -1, nullptr);
+        uv_fs_read(uv_default_loop(), &readReq, handle->fileDescriptor, &iov, 1, -1, nullptr);
 
         numBytesRead = readReq.result;
         totalBytesRead += numBytesRead;
@@ -283,7 +279,7 @@ int readfiletostring(lua_State* L)
         if (numBytesRead < 0)
         {
             printf("Error reading: %s. Closing file.\n", uv_err_name(numBytesRead));
-            cleanup(readBuffer, sizeof(readBuffer), handle);
+            cleanup(readBuffer, sizeof(readBuffer), *handle);
             return 0;
         }
         // concatenate the read string into the result buffer
@@ -295,7 +291,7 @@ int readfiletostring(lua_State* L)
     luaL_pushresult(&resultBuf);
 
     // Clean up the scratch space
-    cleanup(readBuffer, sizeof(readBuffer), handle);
+    cleanup(readBuffer, sizeof(readBuffer), *handle);
     return 1;
 }
 
@@ -306,8 +302,8 @@ int writestringtofile(lua_State* L)
     const char* path = luaL_checkstring(L, 1);
     const char openMode[] = "w+";
     int openFlags = 0x0000;
-    FileHandle handle;
-    if (!openHelper(L, path, openMode, &openFlags, handle))
+    std::optional<FileHandle> handle = openHelper(L, path, openMode, &openFlags);
+    if (!handle)
     {
         printf("Error opening file for reading at %s\n", path);
         return 0;
@@ -331,14 +327,14 @@ int writestringtofile(lua_State* L)
 
         uv_fs_t writeReq;
         int bytesWritten = 0;
-        uv_fs_write(uv_default_loop(), &writeReq, handle.fileDescriptor, &iov, 1, -1, nullptr);
+        uv_fs_write(uv_default_loop(), &writeReq, handle->fileDescriptor, &iov, 1, -1, nullptr);
         bytesWritten = writeReq.result;
 
         if (bytesWritten < 0)
         {
             // Error case.
-            printf("Error writing to file with descriptor %zu\n", handle.fileDescriptor);
-            cleanup(writeBuffer, sizeof(writeBuffer), handle);
+            printf("Error writing to file with descriptor %zu\n", handle->fileDescriptor);
+            cleanup(writeBuffer, sizeof(writeBuffer), *handle);
             return 0;
         }
 
@@ -347,7 +343,7 @@ int writestringtofile(lua_State* L)
         numBytesLeftToWrite -= bytesWritten;
     } while (numBytesLeftToWrite > 0);
 
-    cleanup(writeBuffer, sizeof(writeBuffer), handle);
+    cleanup(writeBuffer, sizeof(writeBuffer), *handle);
     return 0;
 }
 

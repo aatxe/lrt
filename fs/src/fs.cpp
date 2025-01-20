@@ -11,6 +11,7 @@
 #include <string>
 #include <map>
 #include <memory>
+#include <optional>
 #ifdef _WIN32
 #include <direct.h>
 #else

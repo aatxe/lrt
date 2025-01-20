@@ -1,11 +1,15 @@
 #include "queijo/fs.h"
+
 #include "lua.h"
 #include "lualib.h"
+#include "uv.h"
+
 #include "queijo/ref.h"
 #include "queijo/runtime.h"
-#include "uv.h"
+
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <memory>
 #ifdef _WIN32
 #include <direct.h>
@@ -15,8 +19,6 @@
 #include <sys/stat.h>
 #include <string>
 #include <stdlib.h>
-#include <map>
-using namespace std;
 
 namespace fs
 {
@@ -29,28 +31,19 @@ int setFlags(const char* c, int* openFlags, int* modeFlags)
         switch (c)
         {
         case 'r':
-        {
             *openFlags |= O_RDONLY;
             break;
-        }
         case 'w':
-        {
             *openFlags |= O_WRONLY | O_TRUNC;
             break;
-        }
         case 'x':
-        {
             *openFlags |= O_CREAT | O_EXCL;
             *modeFlags = 0700;
             break;
-        }
         case 'a':
-        {
             *openFlags |= O_WRONLY | O_APPEND;
-        }
+            break;
         case '+':
-        {
-
             // If we have not set the truncate bit in 'w' mode,
             *openFlags &= ~O_RDONLY;
             *openFlags &= ~O_WRONLY;
@@ -62,12 +55,9 @@ int setFlags(const char* c, int* openFlags, int* modeFlags)
                 *modeFlags = 0000700 | 0000070 | 0000007;
             }
             break;
-        }
         default:
-        {
             printf("Unsupported mode %c\n", c);
             return 1;
-        }
         }
     }
 
@@ -179,7 +169,7 @@ int write(lua_State* L)
     {
         // copy stringToWrite[0], numBytesLeftToWrite into write buffer
 
-        int sizeToWrite = min(wbSize, numBytesLeftToWrite);
+        int sizeToWrite = std::min(wbSize, numBytesLeftToWrite);
         memcpy(writeBuffer, stringToWrite + offset, sizeToWrite);
         uv_buf_t iov = uv_buf_init(writeBuffer, sizeToWrite);
 
@@ -335,7 +325,7 @@ int writestringtofile(lua_State* L)
     {
         // copy stringToWrite[0], numBytesLeftToWrite into write buffer
 
-        int sizeToWrite = min(wbSize, numBytesLeftToWrite);
+        int sizeToWrite = std::min(wbSize, numBytesLeftToWrite);
         memcpy(writeBuffer, stringToWrite + offset, sizeToWrite);
         iov = uv_buf_init(writeBuffer, sizeToWrite);
 

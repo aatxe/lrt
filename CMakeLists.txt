@@ -77,23 +77,24 @@ target_link_libraries(Queijo.Net PRIVATE Queijo.Runtime Luau.VM uv_a ${WOLFSSL_L
 target_link_libraries(Queijo.Task PRIVATE Queijo.Runtime Luau.VM uv_a)
 target_link_libraries(Queijo.CLI PRIVATE Luau.CLI.lib Luau.Compiler Luau.Config Luau.CodeGen Luau.Analysis Luau.VM Queijo.Runtime Queijo.Fs Queijo.Luau Queijo.Net Queijo.Task)
 
-target_compile_options(Queijo.Runtime PRIVATE ${QUEIJO_OPTIONS})
-target_compile_options(Queijo.Fs PRIVATE ${QUEIJO_OPTIONS})
-target_compile_options(Queijo.Luau PRIVATE ${QUEIJO_OPTIONS})
-target_compile_options(Queijo.Net PRIVATE ${QUEIJO_OPTIONS})
-target_compile_options(Queijo.Task PRIVATE ${QUEIJO_OPTIONS})
-target_compile_options(Queijo.CLI PRIVATE ${QUEIJO_OPTIONS})
-
 set(QUEIJO_OPTIONS)
 
 if(MSVC)
+    list(APPEND QUEIJO_OPTIONS /DNOMINMAX)
     list(APPEND QUEIJO_OPTIONS /D_CRT_SECURE_NO_WARNINGS) # We need to use the portable CRT functions.
     list(APPEND QUEIJO_OPTIONS "/we4018") # Signed/unsigned mismatch
     list(APPEND QUEIJO_OPTIONS "/we4388") # Also signed/unsigned mismatch
-    list(APPEND QUEIJO_OPTIONS /WX) # Warnings are errors
+    # FIXME: list(APPEND QUEIJO_OPTIONS /WX) # Warnings are errors
 else()
     list(APPEND QUEIJO_OPTIONS -Wall) # All warnings
     list(APPEND QUEIJO_OPTIONS -Wimplicit-fallthrough)
     list(APPEND QUEIJO_OPTIONS -Wsign-compare) # This looks to be included in -Wall for GCC but not clang
     list(APPEND QUEIJO_OPTIONS -Werror) # Warnings are errors
 endif()
+
+target_compile_options(Queijo.Runtime PRIVATE ${QUEIJO_OPTIONS})
+target_compile_options(Queijo.Fs PRIVATE ${QUEIJO_OPTIONS})
+target_compile_options(Queijo.Luau PRIVATE ${QUEIJO_OPTIONS})
+target_compile_options(Queijo.Net PRIVATE ${QUEIJO_OPTIONS})
+target_compile_options(Queijo.Task PRIVATE ${QUEIJO_OPTIONS})
+target_compile_options(Queijo.CLI PRIVATE ${QUEIJO_OPTIONS})

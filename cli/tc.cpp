@@ -184,7 +184,6 @@ int typecheck(const std::vector<std::string> sourceFiles)
 {
     Luau::Mode mode = Luau::Mode::Strict;
     bool annotate = true;
-    int threadCount = 0;
     std::string basePath = "";
 
     Luau::FrontendOptions frontendOptions;

@@ -147,6 +147,11 @@ local function traverseTable(dataTable, seen, indent)
     return output
 end
 
-return function(dataTable)
-    return "{\n" .. traverseTable(dataTable, {[dataTable]=true}, 1) .. "}"
+return function(data)
+    -- if it's not a primitive, we'll pretty print it as a value
+    if typeof(data) ~= "table" then
+        return formatValue(data)
+    end
+
+    return "{\n" .. traverseTable(data, {[data]=true}, 1) .. "}"
 end

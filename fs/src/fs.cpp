@@ -8,7 +8,7 @@
 #include "queijo/runtime.h"
 
 #include <cstdio>
-#include <string>
+#include <cstring>
 #include <map>
 #include <memory>
 #include <optional>

@@ -24,8 +24,10 @@
 namespace fs
 {
 
-int setFlags(const char* c, int* openFlags, int* modeFlags)
+std::optional<int> setFlags(const char* c, int* openFlags)
 {
+    int modeFlags = 0x0000;
+
     for (const char* it = c; *it != '\0'; it++)
     {
         char c = *it;
@@ -39,7 +41,7 @@ int setFlags(const char* c, int* openFlags, int* modeFlags)
             break;
         case 'x':
             *openFlags |= O_CREAT | O_EXCL;
-            *modeFlags = 0700;
+            modeFlags = 0700;
             break;
         case 'a':
             *openFlags |= O_WRONLY | O_APPEND;
@@ -53,16 +55,15 @@ int setFlags(const char* c, int* openFlags, int* modeFlags)
             if ((*openFlags & O_TRUNC))
             {
                 *openFlags |= O_CREAT;
-                *modeFlags = 0000700 | 0000070 | 0000007;
+                modeFlags = 0000700 | 0000070 | 0000007;
             }
             break;
         default:
-            printf("Unsupported mode %c\n", c);
-            return 1;
+            return std::nullopt;
         }
     }
 
-    return 0;
+    return modeFlags;
 }
 
 struct FileHandle
@@ -197,13 +198,12 @@ int write(lua_State* L)
 // Returns 0 on error, 1 otherwise
 std::optional<FileHandle> openHelper(lua_State* L, const char* path, const char* mode, int* openFlags)
 {
-    int modeFlags = 0x0000;
-
-    if (setFlags(mode, openFlags, &modeFlags))
+    std::optional<int> modeFlags = setFlags(mode, openFlags);
+    if (!modeFlags)
         return std::nullopt;
 
     uv_fs_t openReq;
-    int errcode = uv_fs_open(uv_default_loop(), &openReq, path, *openFlags, modeFlags, nullptr);
+    int errcode = uv_fs_open(uv_default_loop(), &openReq, path, *openFlags, *modeFlags, nullptr);
     if (openReq.result < 0)
     {
         luaL_errorL(L, "Error opening file %s\n", path);

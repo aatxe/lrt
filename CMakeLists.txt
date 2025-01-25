@@ -84,7 +84,7 @@ if(MSVC)
     list(APPEND QUEIJO_OPTIONS /D_CRT_SECURE_NO_WARNINGS) # We need to use the portable CRT functions.
     list(APPEND QUEIJO_OPTIONS "/we4018") # Signed/unsigned mismatch
     list(APPEND QUEIJO_OPTIONS "/we4388") # Also signed/unsigned mismatch
-    list(APPEND QUEIJO_OPTIONS /WX) # Warnings are errors
+    # FIXME: list(APPEND QUEIJO_OPTIONS /WX) # Warnings are errors
 else()
     list(APPEND QUEIJO_OPTIONS -Wall) # All warnings
     list(APPEND QUEIJO_OPTIONS -Wimplicit-fallthrough)

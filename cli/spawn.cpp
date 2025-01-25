@@ -161,8 +161,6 @@ int lua_spawn(lua_State* L)
 {
     const char* file = luaL_checkstring(L, 1);
 
-    Runtime* runtime = getRuntime(L);
-
     auto child = std::make_shared<Runtime>();
 
     setupState(*child);

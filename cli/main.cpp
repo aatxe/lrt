@@ -228,7 +228,6 @@ int main(int argc, char** argv)
 
     for (size_t i = 0; i < files.size(); ++i)
     {
-        bool isLastFile = i == files.size() - 1;
         failed += !runFile(runtime, files[i].c_str(), L);
     }
 

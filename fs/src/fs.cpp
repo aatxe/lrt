@@ -123,7 +123,6 @@ int read(lua_State* L)
     FileHandle file = unpackFileHandle(L);
 
     int numBytesRead = 0;
-    int totalBytesRead = 0;
     uv_fs_t readReq;
     uv_buf_t iov = uv_buf_init(readBuffer, sizeof(readBuffer));
     luaL_Strbuf resultBuf;
@@ -133,7 +132,6 @@ int read(lua_State* L)
         uv_fs_read(uv_default_loop(), &readReq, file.fileDescriptor, &iov, 1, -1, nullptr);
 
         numBytesRead = readReq.result;
-        totalBytesRead += numBytesRead;
 
         if (numBytesRead < 0)
         {
@@ -218,7 +216,6 @@ int open(lua_State* L)
     int nArgs = lua_gettop(L);
     const char* path = luaL_checkstring(L, 1);
     int openFlags = 0x0000;
-    int modeFlags = 0x0000;
     // When the number of arguments is less 2
     if (nArgs < 1)
     {
@@ -265,7 +262,6 @@ int readfiletostring(lua_State* L)
     lua_settop(L, 1);
 
     int numBytesRead = 0;
-    int totalBytesRead = 0;
     uv_fs_t readReq;
     uv_buf_t iov = uv_buf_init(readBuffer, sizeof(readBuffer));
     luaL_Strbuf resultBuf;
@@ -275,7 +271,6 @@ int readfiletostring(lua_State* L)
         uv_fs_read(uv_default_loop(), &readReq, handle->fileDescriptor, &iov, 1, -1, nullptr);
 
         numBytesRead = readReq.result;
-        totalBytesRead += numBytesRead;
 
         if (numBytesRead < 0)
         {
@@ -403,7 +398,6 @@ int readasync(lua_State* L)
             uv_buf_t iov = uv_buf_init(readBuffer, sizeof(readBuffer));
             // Read data
             int numBytesRead = 0;
-            int totalBytesRead = 0;
             uv_fs_t readReq;
             // Output data
             std::vector<char> resultData;
@@ -412,7 +406,6 @@ int readasync(lua_State* L)
             {
                 uv_fs_read(uv_default_loop(), &readReq, fd, &iov, 1, -1, nullptr);
                 numBytesRead = readReq.result;
-                totalBytesRead += numBytesRead;
 
                 if (numBytesRead < 0)
                 {

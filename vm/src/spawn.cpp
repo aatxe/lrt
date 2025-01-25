@@ -156,7 +156,7 @@ static int crossVmMarshallCont(lua_State* L, int status)
     return 0;
 }
 
-namespace task {
+namespace vm {
 
 int lua_spawn(lua_State* L)
 {
@@ -240,4 +240,4 @@ int lua_spawn(lua_State* L)
     return 1;
 }
 
-} // namespace task
+} // namespace vm

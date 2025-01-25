@@ -73,7 +73,6 @@ end
 
 return {
     create = create,
-    spawn = task.spawn,
     await = await,
     awaitall = awaitall,
 }

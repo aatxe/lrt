@@ -30,10 +30,16 @@ target_sources(Queijo.Net PRIVATE
 
 target_sources(Queijo.Task PRIVATE
     task/include/queijo/task.h
-    task/include/queijo/spawn.h
 
     task/src/task.cpp
-    task/src/spawn.cpp
+)
+
+target_sources(Queijo.VM PRIVATE
+    vm/include/queijo/spawn.h
+    vm/include/queijo/vm.h
+
+    vm/src/spawn.cpp
+    vm/src/vm.cpp
 )
 
 target_sources(Queijo.CLI PRIVATE

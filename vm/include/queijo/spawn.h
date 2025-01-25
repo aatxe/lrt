@@ -2,9 +2,9 @@
 
 struct lua_State;
 
-namespace task
+namespace vm
 {
 
 int lua_spawn(lua_State* L);
 
-} //namespace task
+} //namespace vm

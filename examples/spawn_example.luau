@@ -1,10 +1,12 @@
+local vm = require("@lrt/vm")
+
 local task = require("@std/task")
 
 print("start")
 
-local vm1 = task.spawn("./fib")
-local vm2 = task.spawn("./fib")
-local vm3 = task.spawn("./fib")
+local vm1 = vm.spawn("./fib")
+local vm2 = vm.spawn("./fib")
+local vm3 = vm.spawn("./fib")
 
 print("fib(15):", vm1.fib(15))
 print("fib(20):", vm2.fib(20))

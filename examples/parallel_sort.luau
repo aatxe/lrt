@@ -1,3 +1,5 @@
+local vm = require("@lrt/vm")
+
 local task = require("@std/task")
 
 local function getslice(t, n, m)
@@ -43,7 +45,7 @@ local threadCount = 8
 local threads = {}
 
 for i = 1, threadCount do
-    table.insert(threads, task.spawn("./parallel_sort_helper"))
+    table.insert(threads, vm.spawn("./parallel_sort_helper"))
 end
 
 local function parallelMergeSort(t, comp)

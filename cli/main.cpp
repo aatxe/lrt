@@ -16,6 +16,7 @@
 #include "queijo/require.h"
 #include "queijo/runtime.h"
 #include "queijo/task.h"
+#include "queijo/vm.h"
 
 #include "tc.h"
 
@@ -62,6 +63,9 @@ lua_State* setupState(Runtime& runtime)
 
     lrtopen_task(L);
     lua_setfield(L, -2, "@lrt/task");
+
+    lrtopen_vm(L);
+    lua_setfield(L, -2, "@lrt/vm");
 
     static const luaL_Reg funcs[] = {
         {"require", lua_require},

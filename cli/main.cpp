@@ -21,7 +21,6 @@
 #include "uv.h"
 
 #ifdef _WIN32
-#define NOMINMAX // prevent windows.h from defining min/max macros
 #include <Windows.h>
 #endif
 

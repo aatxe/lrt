@@ -87,6 +87,7 @@ target_compile_options(Queijo.CLI PRIVATE ${QUEIJO_OPTIONS})
 set(QUEIJO_OPTIONS)
 
 if(MSVC)
+    list(APPEND QUEIJO_OPTIONS NOMINMAX)
     list(APPEND QUEIJO_OPTIONS /D_CRT_SECURE_NO_WARNINGS) # We need to use the portable CRT functions.
     list(APPEND QUEIJO_OPTIONS "/we4018") # Signed/unsigned mismatch
     list(APPEND QUEIJO_OPTIONS "/we4388") # Also signed/unsigned mismatch

@@ -136,7 +136,7 @@ int read(lua_State* L)
 
         if (numBytesRead < 0)
         {
-            printf("Error reading: %s. Closing file.\n", uv_err_name(numBytesRead));
+            luaL_errorL(L, "Error reading: %s. Closing file.\n", uv_err_name(numBytesRead));
             memset(readBuffer, 0, sizeof(readBuffer));
             return 0;
         }
@@ -182,7 +182,7 @@ int write(lua_State* L)
         if (bytesWritten < 0)
         {
             // Error case.
-            printf("Error writing to file with descriptor %zu\n", file.fileDescriptor);
+            luaL_errorL(L, "Error writing to file with descriptor %zu\n", file.fileDescriptor);
             memset(writeBuffer, 0, sizeof(writeBuffer));
             return 0;
         }
@@ -206,7 +206,7 @@ std::optional<FileHandle> openHelper(lua_State* L, const char* path, const char*
     int errcode = uv_fs_open(uv_default_loop(), &openReq, path, *openFlags, modeFlags, nullptr);
     if (openReq.result < 0)
     {
-        printf("Error opening file %s\n", path);
+        luaL_errorL(L, "Error opening file %s\n", path);
         return std::nullopt;
     }
 
@@ -222,7 +222,7 @@ int open(lua_State* L)
     // When the number of arguments is less 2
     if (nArgs < 1)
     {
-        printf("Error: no file supplied\n");
+        luaL_errorL(L, "Error: no file supplied\n");
         return 0;
     }
 
@@ -256,7 +256,7 @@ int readfiletostring(lua_State* L)
     std::optional<FileHandle> handle = openHelper(L, path, openMode, &openFlags);
     if (!handle)
     {
-        printf("Error opening file for reading at %s\n", path);
+        luaL_errorL(L, "Error opening file for reading at %s\n", path);
         return 0;
     }
 
@@ -279,7 +279,7 @@ int readfiletostring(lua_State* L)
 
         if (numBytesRead < 0)
         {
-            printf("Error reading: %s. Closing file.\n", uv_err_name(numBytesRead));
+            luaL_errorL(L, "Error reading: %s. Closing file.\n", uv_err_name(numBytesRead));
             cleanup(readBuffer, sizeof(readBuffer), *handle);
             return 0;
         }
@@ -306,7 +306,7 @@ int writestringtofile(lua_State* L)
     std::optional<FileHandle> handle = openHelper(L, path, openMode, &openFlags);
     if (!handle)
     {
-        printf("Error opening file for reading at %s\n", path);
+        luaL_errorL(L, "Error opening file for reading at %s\n", path);
         return 0;
     }
 
@@ -334,7 +334,7 @@ int writestringtofile(lua_State* L)
         if (bytesWritten < 0)
         {
             // Error case.
-            printf("Error writing to file with descriptor %zu\n", handle->fileDescriptor);
+            luaL_errorL(L, "Error writing to file with descriptor %zu\n", handle->fileDescriptor);
             cleanup(writeBuffer, sizeof(writeBuffer), *handle);
             return 0;
         }

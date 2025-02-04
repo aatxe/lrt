@@ -3,7 +3,7 @@
 #include "lua.h"
 #include "lualib.h"
 
-#include "queijo/spawn.h"
+#include "lute/spawn.h"
 
 // open the library as a standard global luau library
 int luaopen_vm(lua_State* L);

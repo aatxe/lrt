@@ -5,14 +5,14 @@ set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-project(Queijo LANGUAGES CXX C)
+project(Lute LANGUAGES CXX C)
 
-add_library(Queijo.Runtime STATIC)
-add_library(Queijo.Fs STATIC)
-add_library(Queijo.Luau STATIC)
-add_library(Queijo.Net STATIC)
-add_library(Queijo.Task STATIC)
-add_library(Queijo.VM STATIC)
+add_library(Lute.Runtime STATIC)
+add_library(Lute.Fs STATIC)
+add_library(Lute.Luau STATIC)
+add_library(Lute.Net STATIC)
+add_library(Lute.Task STATIC)
+add_library(Lute.VM STATIC)
 
 # luau setup
 set(LUAU_BUILD_CLI OFF)
@@ -53,53 +53,53 @@ add_subdirectory(extern/curl)
 
 #
 
-add_executable(Queijo.CLI)
-set_target_properties(Queijo.CLI PROPERTIES OUTPUT_NAME lrt)
+add_executable(Lute.CLI)
+set_target_properties(Lute.CLI PROPERTIES OUTPUT_NAME lute)
 
 set(LIBUV_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/extern/libuv/include)
 
 include(Sources.cmake)
 
-target_compile_features(Queijo.Runtime PUBLIC cxx_std_17)
-target_compile_features(Queijo.Fs PUBLIC cxx_std_17)
-target_compile_features(Queijo.Luau PUBLIC cxx_std_17)
-target_compile_features(Queijo.Net PUBLIC cxx_std_17)
-target_compile_features(Queijo.Task PUBLIC cxx_std_17)
-target_compile_features(Queijo.VM PUBLIC cxx_std_17)
-target_include_directories(Queijo.Runtime PUBLIC runtime/include ${LIBUV_INCLUDE_DIR})
-target_include_directories(Queijo.Fs PUBLIC fs/include ${LIBUV_INCLUDE_DIR})
-target_include_directories(Queijo.Luau PUBLIC luau/include ${LIBUV_INCLUDE_DIR})
-target_include_directories(Queijo.Net PUBLIC net/include ${LIBUV_INCLUDE_DIR})
-target_include_directories(Queijo.Task PUBLIC task/include ${LIBUV_INCLUDE_DIR})
-target_include_directories(Queijo.VM PUBLIC vm/include ${LIBUV_INCLUDE_DIR})
+target_compile_features(Lute.Runtime PUBLIC cxx_std_17)
+target_compile_features(Lute.Fs PUBLIC cxx_std_17)
+target_compile_features(Lute.Luau PUBLIC cxx_std_17)
+target_compile_features(Lute.Net PUBLIC cxx_std_17)
+target_compile_features(Lute.Task PUBLIC cxx_std_17)
+target_compile_features(Lute.VM PUBLIC cxx_std_17)
+target_include_directories(Lute.Runtime PUBLIC runtime/include ${LIBUV_INCLUDE_DIR})
+target_include_directories(Lute.Fs PUBLIC fs/include ${LIBUV_INCLUDE_DIR})
+target_include_directories(Lute.Luau PUBLIC luau/include ${LIBUV_INCLUDE_DIR})
+target_include_directories(Lute.Net PUBLIC net/include ${LIBUV_INCLUDE_DIR})
+target_include_directories(Lute.Task PUBLIC task/include ${LIBUV_INCLUDE_DIR})
+target_include_directories(Lute.VM PUBLIC vm/include ${LIBUV_INCLUDE_DIR})
 
-target_link_libraries(Queijo.Runtime PRIVATE Luau.CLI.lib Luau.Compiler Luau.Config Luau.CodeGen Luau.VM uv_a)
-target_link_libraries(Queijo.Fs PRIVATE Queijo.Runtime Luau.VM uv_a)
-target_link_libraries(Queijo.Luau PRIVATE Queijo.Runtime Luau.VM uv_a Luau.Analysis Luau.Ast)
-target_link_libraries(Queijo.Net PRIVATE Queijo.Runtime Luau.VM uv_a ${WOLFSSL_LIBRARY} libcurl)
-target_link_libraries(Queijo.Task PRIVATE Queijo.Runtime Luau.VM uv_a)
-target_link_libraries(Queijo.VM PRIVATE Queijo.Runtime Luau.VM uv_a)
-target_link_libraries(Queijo.CLI PRIVATE Luau.CLI.lib Luau.Compiler Luau.Config Luau.CodeGen Luau.Analysis Luau.VM Queijo.Runtime Queijo.Fs Queijo.Luau Queijo.Net Queijo.Task Queijo.VM)
+target_link_libraries(Lute.Runtime PRIVATE Luau.CLI.lib Luau.Compiler Luau.Config Luau.CodeGen Luau.VM uv_a)
+target_link_libraries(Lute.Fs PRIVATE Lute.Runtime Luau.VM uv_a)
+target_link_libraries(Lute.Luau PRIVATE Lute.Runtime Luau.VM uv_a Luau.Analysis Luau.Ast)
+target_link_libraries(Lute.Net PRIVATE Lute.Runtime Luau.VM uv_a ${WOLFSSL_LIBRARY} libcurl)
+target_link_libraries(Lute.Task PRIVATE Lute.Runtime Luau.VM uv_a)
+target_link_libraries(Lute.VM PRIVATE Lute.Runtime Luau.VM uv_a)
+target_link_libraries(Lute.CLI PRIVATE Luau.CLI.lib Luau.Compiler Luau.Config Luau.CodeGen Luau.Analysis Luau.VM Lute.Runtime Lute.Fs Lute.Luau Lute.Net Lute.Task Lute.VM)
 
-set(QUEIJO_OPTIONS)
+set(LUTE_OPTIONS)
 
 if(MSVC)
-    list(APPEND QUEIJO_OPTIONS /DNOMINMAX)
-    list(APPEND QUEIJO_OPTIONS /D_CRT_SECURE_NO_WARNINGS) # We need to use the portable CRT functions.
-    list(APPEND QUEIJO_OPTIONS "/we4018") # Signed/unsigned mismatch
-    list(APPEND QUEIJO_OPTIONS "/we4388") # Also signed/unsigned mismatch
-    # FIXME: list(APPEND QUEIJO_OPTIONS /WX) # Warnings are errors
+    list(APPEND LUTE_OPTIONS /DNOMINMAX)
+    list(APPEND LUTE_OPTIONS /D_CRT_SECURE_NO_WARNINGS) # We need to use the portable CRT functions.
+    list(APPEND LUTE_OPTIONS "/we4018") # Signed/unsigned mismatch
+    list(APPEND LUTE_OPTIONS "/we4388") # Also signed/unsigned mismatch
+    # FIXME: list(APPEND LUTE_OPTIONS /WX) # Warnings are errors
 else()
-    list(APPEND QUEIJO_OPTIONS -Wall) # All warnings
-    list(APPEND QUEIJO_OPTIONS -Wimplicit-fallthrough)
-    list(APPEND QUEIJO_OPTIONS -Wsign-compare) # This looks to be included in -Wall for GCC but not clang
-    list(APPEND QUEIJO_OPTIONS -Werror) # Warnings are errors
+    list(APPEND LUTE_OPTIONS -Wall) # All warnings
+    list(APPEND LUTE_OPTIONS -Wimplicit-fallthrough)
+    list(APPEND LUTE_OPTIONS -Wsign-compare) # This looks to be included in -Wall for GCC but not clang
+    list(APPEND LUTE_OPTIONS -Werror) # Warnings are errors
 endif()
 
-target_compile_options(Queijo.Runtime PRIVATE ${QUEIJO_OPTIONS})
-target_compile_options(Queijo.Fs PRIVATE ${QUEIJO_OPTIONS})
-target_compile_options(Queijo.Luau PRIVATE ${QUEIJO_OPTIONS})
-target_compile_options(Queijo.Net PRIVATE ${QUEIJO_OPTIONS})
-target_compile_options(Queijo.Task PRIVATE ${QUEIJO_OPTIONS})
-target_compile_options(Queijo.VM PRIVATE ${QUEIJO_OPTIONS})
-target_compile_options(Queijo.CLI PRIVATE ${QUEIJO_OPTIONS})
+target_compile_options(Lute.Runtime PRIVATE ${LUTE_OPTIONS})
+target_compile_options(Lute.Fs PRIVATE ${LUTE_OPTIONS})
+target_compile_options(Lute.Luau PRIVATE ${LUTE_OPTIONS})
+target_compile_options(Lute.Net PRIVATE ${LUTE_OPTIONS})
+target_compile_options(Lute.Task PRIVATE ${LUTE_OPTIONS})
+target_compile_options(Lute.VM PRIVATE ${LUTE_OPTIONS})
+target_compile_options(Lute.CLI PRIVATE ${LUTE_OPTIONS})

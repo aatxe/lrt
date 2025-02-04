@@ -1,4 +1,4 @@
-name: Queijo CI
+name: Lute CI
 
 on:
   push:

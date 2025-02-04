@@ -1,7 +1,7 @@
-#include "queijo/spawn.h"
+#include "lute/spawn.h"
 
-#include "queijo/require.h"
-#include "queijo/runtime.h"
+#include "lute/require.h"
+#include "lute/runtime.h"
 
 #include <memory>
 

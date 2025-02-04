@@ -8,15 +8,15 @@
 #include "lualib.h"
 #include "uv.h"
 
-#include "queijo/fs.h"
-#include "queijo/luau.h"
-#include "queijo/net.h"
-#include "queijo/options.h"
-#include "queijo/ref.h"
-#include "queijo/require.h"
-#include "queijo/runtime.h"
-#include "queijo/task.h"
-#include "queijo/vm.h"
+#include "lute/fs.h"
+#include "lute/luau.h"
+#include "lute/net.h"
+#include "lute/options.h"
+#include "lute/ref.h"
+#include "lute/require.h"
+#include "lute/runtime.h"
+#include "lute/task.h"
+#include "lute/vm.h"
 
 #include "tc.h"
 
@@ -211,7 +211,7 @@ int main(int argc, char** argv)
 
     if (files.empty())
     {
-        fprintf(stderr, "Error: queijo expects a file to run.\n\n");
+        fprintf(stderr, "Error: lute expects a file to run.\n\n");
         displayHelp(argv[0]);
         return 1;
     }

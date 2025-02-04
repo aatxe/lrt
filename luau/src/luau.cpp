@@ -1,4 +1,4 @@
-#include "queijo/luau.h"
+#include "lute/luau.h"
 
 #include "Luau/Ast.h"
 #include "Luau/Location.h"

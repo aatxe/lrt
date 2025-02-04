@@ -1,5 +1,5 @@
-#include "queijo/ref.h"
-#include "queijo/runtime.h"
+#include "lute/ref.h"
+#include "lute/runtime.h"
 
 #include "lua.h"
 

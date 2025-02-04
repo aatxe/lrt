@@ -1,6 +1,6 @@
-#include "queijo/net.h"
+#include "lute/net.h"
 
-#include "queijo/runtime.h"
+#include "lute/runtime.h"
 
 #include "curl/curl.h"
 

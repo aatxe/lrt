@@ -1,6 +1,6 @@
-#include "queijo/require.h"
+#include "lute/require.h"
 
-#include "queijo/options.h"
+#include "lute/options.h"
 
 #include "lua.h"
 #include "lualib.h"

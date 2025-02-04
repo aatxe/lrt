@@ -1,6 +1,6 @@
-#include "queijo/vm.h"
+#include "lute/vm.h"
 
-#include "queijo/runtime.h"
+#include "lute/runtime.h"
 
 int luaopen_vm(lua_State* L)
 {

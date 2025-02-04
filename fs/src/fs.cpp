@@ -1,11 +1,11 @@
-#include "queijo/fs.h"
+#include "lute/fs.h"
 
 #include "lua.h"
 #include "lualib.h"
 #include "uv.h"
 
-#include "queijo/ref.h"
-#include "queijo/runtime.h"
+#include "lute/ref.h"
+#include "lute/runtime.h"
 
 #include <cstdio>
 #include <cstring>

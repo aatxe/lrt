@@ -5,7 +5,7 @@
 #include "Luau/Transpiler.h"
 #include "Luau/TypeAttach.h"
 
-static const std::string kQueijoDefinitions = R"QUEIJO_TYPES(
+static const std::string kLuteDefinitions = R"LUTE_TYPES(
 -- Net api
 declare net: {
     get: (string) -> string,
@@ -28,9 +28,9 @@ declare fs: {
 -- globals
 declare function spawn(path: string): any
 
-)QUEIJO_TYPES";
+)LUTE_TYPES";
 
-struct QueijoFileResolver : Luau::FileResolver
+struct LuteFileResolver : Luau::FileResolver
 {
     std::optional<Luau::SourceCode> readSource(const Luau::ModuleName& name) override
     {
@@ -72,14 +72,14 @@ private:
 // TODO: add require resolver;
 };
 
-struct QueijoConfigResolver : Luau::ConfigResolver
+struct LuteConfigResolver : Luau::ConfigResolver
 {
     Luau::Config defaultConfig;
 
     mutable std::unordered_map<std::string, Luau::Config> configCache;
     mutable std::vector<std::pair<std::string, std::string>> configErrors;
 
-    QueijoConfigResolver(Luau::Mode mode)
+    LuteConfigResolver(Luau::Mode mode)
     {
         defaultConfig.mode = mode;
     }
@@ -190,13 +190,13 @@ int typecheck(const std::vector<std::string> sourceFiles)
     frontendOptions.retainFullTypeGraphs = annotate;
     frontendOptions.runLintChecks = true;
 
-    QueijoFileResolver fileResolver;
-    QueijoConfigResolver configResolver(mode);
+    LuteFileResolver fileResolver;
+    LuteConfigResolver configResolver(mode);
     Luau::Frontend frontend(&fileResolver, &configResolver, frontendOptions);
 
     Luau::registerBuiltinGlobals(frontend, frontend.globals);
     Luau::LoadDefinitionFileResult loadResult =
-        frontend.loadDefinitionFile(frontend.globals, frontend.globals.globalScope, kQueijoDefinitions, "@luau", false, false);
+        frontend.loadDefinitionFile(frontend.globals, frontend.globals.globalScope, kLuteDefinitions, "@luau", false, false);
     LUAU_ASSERT(loadResult.success);
     Luau::freeze(frontend.globals.globalTypes);
 

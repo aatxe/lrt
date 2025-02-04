@@ -1,4 +1,4 @@
-local task = require("@lrt/task")
+local task = require("@lute/task")
 
 export type task = {
     success: boolean?,

@@ -119,7 +119,7 @@ int luaopen_net(lua_State* L)
     return 1;
 }
 
-int lrtopen_net(lua_State* L)
+int luteopen_net(lua_State* L)
 {
     globalCurlInit();
 

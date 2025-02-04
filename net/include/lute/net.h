@@ -6,7 +6,7 @@
 // open the library as a standard global luau library
 int luaopen_net(lua_State* L);
 // open the library as a table on top of the stack
-int lrtopen_net(lua_State* L);
+int luteopen_net(lua_State* L);
 
 namespace net
 {

@@ -1,4 +1,4 @@
-local net = require("@lrt/net")
+local net = require("@lute/net")
 
 local task = require("@std/task")
 

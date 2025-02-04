@@ -1,4 +1,4 @@
-local luau = require("@lrt/luau")
+local luau = require("@lute/luau")
 
 local pretty = require("@std/pp")
 

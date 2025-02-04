@@ -6,7 +6,7 @@
 // open the library as a standard global luau library
 int luaopen_task(lua_State* L);
 // open the library as a table on top of the stack
-int lrtopen_task(lua_State* L);
+int luteopen_task(lua_State* L);
 
 namespace task
 {

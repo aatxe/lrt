@@ -1,4 +1,4 @@
-local vm = require("@lrt/vm")
+local vm = require("@lute/vm")
 
 local task = require("@std/task")
 

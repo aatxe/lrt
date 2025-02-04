@@ -1,4 +1,4 @@
-local fs = require("@lrt/fs")
+local fs = require("@lute/fs")
 local task = require("@std/task")
 
 -- blocking

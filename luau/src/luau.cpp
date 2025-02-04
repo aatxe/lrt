@@ -1345,7 +1345,7 @@ int luaopen_luau(lua_State* L)
     return 1;
 }
 
-int lrtopen_luau(lua_State* L)
+int luteopen_luau(lua_State* L)
 {
     lua_createtable(L, 0, std::size(luau::lib));
 

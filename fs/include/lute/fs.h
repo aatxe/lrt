@@ -6,7 +6,7 @@
 // open the library as a standard global luau library
 int luaopen_fs(lua_State* L);
 // open the library as a table on top of the stack
-int lrtopen_fs(lua_State* L);
+int luteopen_fs(lua_State* L);
 
 namespace fs
 {

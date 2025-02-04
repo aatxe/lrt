@@ -52,20 +52,20 @@ lua_State* setupState(Runtime& runtime)
 
     luaL_findtable(L, LUA_REGISTRYINDEX, "_MODULES", 1);
 
-    lrtopen_fs(L);
-    lua_setfield(L, -2, "@lrt/fs");
+    luteopen_fs(L);
+    lua_setfield(L, -2, "@lute/fs");
 
-    lrtopen_luau(L);
-    lua_setfield(L, -2, "@lrt/luau");
+    luteopen_luau(L);
+    lua_setfield(L, -2, "@lute/luau");
 
-    lrtopen_net(L);
-    lua_setfield(L, -2, "@lrt/net");
+    luteopen_net(L);
+    lua_setfield(L, -2, "@lute/net");
 
-    lrtopen_task(L);
-    lua_setfield(L, -2, "@lrt/task");
+    luteopen_task(L);
+    lua_setfield(L, -2, "@lute/task");
 
-    lrtopen_vm(L);
-    lua_setfield(L, -2, "@lrt/vm");
+    luteopen_vm(L);
+    lua_setfield(L, -2, "@lute/vm");
 
     static const luaL_Reg funcs[] = {
         {"require", lua_require},

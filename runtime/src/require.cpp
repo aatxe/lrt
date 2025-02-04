@@ -102,7 +102,7 @@ static int lua_requireInternal(lua_State* L, std::string name, std::string conte
 {
     RequireResolver::ResolvedRequire resolvedRequire;
 
-    if (name.rfind("@lrt/", 0) == 0)
+    if (name.rfind("@lute/", 0) == 0)
     {
         resolvedRequire.identifier = name;
         resolvedRequire.absolutePath = name;

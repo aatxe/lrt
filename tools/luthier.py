@@ -229,6 +229,8 @@ def getConfigureArguments(args):
     elif config == "release":
         config = "Release"
 
+    if args.clean:
+        call(['rm', '-rf', projectPath])
 
     configArgs = [
         '-G=Ninja',

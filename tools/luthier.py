@@ -31,7 +31,7 @@ argParser = argparse.ArgumentParser(description='crafting a lute!', formatter_cl
 argParser.add_argument(
     'subcommand', help='command to execute',
     metavar="CMD",
-    choices=['configure', 'setup', 'build', 'craft', 'run', 'play'],
+    choices=['configure', 'string', 'build', 'craft', 'run', 'play'],
 )
 
 argParser.add_argument(
@@ -81,7 +81,7 @@ if not isWindows and not isMac and not isLinux:
 
 argParser.epilog = """
 valid subcommands:
-  * configure (or setup)
+  * configure (or string)
   * build (or craft)
   * run (or play)
 
@@ -273,7 +273,7 @@ def main(argv):
 
     subcommand = args.subcommand
 
-    if subcommand == "configure" or subcommand == "setup":
+    if subcommand == "configure" or subcommand == "string":
         return configure(args)
     elif subcommand == "build" or subcommand == "craft":
         # auto configure if it's not already happened

@@ -288,7 +288,7 @@ def main(argv):
         if not projectPathExists(args):
             check(configure(args))
 
-        if not exeExists(args):
+        if not exeExists(args) or args.clean:
             check(build(args))
 
         return run(args, unparsed)

@@ -238,7 +238,7 @@ local function deserialize_number(state: DeserializerState)
 		deserializer_error(state, "Could not match a number literal?")
 	end
 
-	if string.sub(state.src, n_end :: number + 1, n_end :: number + 1) == "." then -- decimal!
+	if string.byte(state.src, n_end :: number + 1) == string.byte(".") then -- decimal!
 		local dec_start, dec_end = string.find(state.src, "^[eE%-+%d]+", n_end :: number + 2)
 
 		if not dec_start then
@@ -433,6 +433,7 @@ deserialize = function(state: DeserializerState): Value
 
 	error("idk")
 end
+
 -- user-facing
 
 json.serialize = function(value: Value, prettyPrint: boolean?)
@@ -455,6 +456,10 @@ json.deserialize = function(src: string)
 	}
 
 	return deserialize(state)
+end
+
+function json.dump_instrument()
+	print(`deserialize_number - {deserialize_number_count.count}s`)
 end
 
 return table.freeze(json)

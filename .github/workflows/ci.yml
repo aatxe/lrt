@@ -1,4 +1,4 @@
-name: Lute CI
+name: build
 
 on:
   push:

@@ -114,7 +114,7 @@ int close(lua_State* L)
     return 0;
 }
 
-static char readBuffer[5];
+static char readBuffer[1024];
 int read(lua_State* L)
 {
     memset(readBuffer, 0, sizeof(readBuffer));
@@ -125,8 +125,8 @@ int read(lua_State* L)
     int numBytesRead = 0;
     uv_fs_t readReq;
     uv_buf_t iov = uv_buf_init(readBuffer, sizeof(readBuffer));
-    luaL_Strbuf resultBuf;
-    luaL_buffinit(L, &resultBuf);
+    // Output data
+    std::vector<char> resultData;
     do
     {
         uv_fs_read(uv_default_loop(), &readReq, file.fileDescriptor, &iov, 1, -1, nullptr);
@@ -139,13 +139,13 @@ int read(lua_State* L)
             memset(readBuffer, 0, sizeof(readBuffer));
             return 0;
         }
-        // concatenate the read string into the result buffer
-        if (numBytesRead > 0)
-            luaL_addlstring(&resultBuf, readBuffer, numBytesRead);
+
+        for (int i = 0; i < numBytesRead; i++)
+            resultData.push_back(readBuffer[i]);
 
     } while (numBytesRead > 0);
 
-    luaL_pushresult(&resultBuf);
+    lua_pushlstring(L, resultData.data(), resultData.size());
 
     // Clean up the scratch space
     memset(readBuffer, 0, sizeof(readBuffer));
@@ -264,8 +264,8 @@ int readfiletostring(lua_State* L)
     int numBytesRead = 0;
     uv_fs_t readReq;
     uv_buf_t iov = uv_buf_init(readBuffer, sizeof(readBuffer));
-    luaL_Strbuf resultBuf;
-    luaL_buffinit(L, &resultBuf);
+    // Output data
+    std::vector<char> resultData;
     do
     {
         uv_fs_read(uv_default_loop(), &readReq, handle->fileDescriptor, &iov, 1, -1, nullptr);
@@ -278,13 +278,13 @@ int readfiletostring(lua_State* L)
             cleanup(readBuffer, sizeof(readBuffer), *handle);
             return 0;
         }
-        // concatenate the read string into the result buffer
-        if (numBytesRead > 0)
-            luaL_addlstring(&resultBuf, readBuffer, numBytesRead);
+
+        for (int i = 0; i < numBytesRead; i++)
+            resultData.push_back(readBuffer[i]);
 
     } while (numBytesRead > 0);
 
-    luaL_pushresult(&resultBuf);
+    lua_pushlstring(L, resultData.data(), resultData.size());
 
     // Clean up the scratch space
     cleanup(readBuffer, sizeof(readBuffer), *handle);
@@ -419,7 +419,6 @@ int readasync(lua_State* L)
                     delete req;
                     return;
                 }
-
 
                 for (int i = 0; i < numBytesRead; i++)
                     resultData.push_back(readBuffer[i]);

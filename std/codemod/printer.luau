@@ -1,17 +1,9 @@
 --!strict
 local T = require("./ast_types")
+local visitor = require("./visitor")
 
 local function exhaustiveMatch(value: never): never
 	error(`Unknown value in exhaustive match: {value}`)
-end
-
---- Returns a string representation of an AstStatBlock
-local function printBlock(block: T.AstStatBlock): string
-	local result = ""
-	for _, statement in block.statements do
-		result ..= printStatement(statement)
-	end
-	return result
 end
 
 local function printTrivia(trivia: T.Trivia): string
@@ -54,71 +46,24 @@ local function printString(expr: T.AstExprConstantString): string
 	return result
 end
 
-local function printLocal(node: T.AstLocal): string
-	return printToken(node.name)
-end
-
-local function printPunctuated<T, Separator>(list: T.Punctuated<T, Separator>, printer: (T) -> string): string
+--- Returns a string representation of an AstStatBlock
+local function printBlock(block: T.AstStatBlock): string
+	local printer = visitor.createVisitor()
 	local result = ""
 
-	for i, item in list do
-		result ..= printer(item.node)
-
-		if item.separator then
-			printToken(item.separator)
-		end
+	printer.visitToken = function(node: T.Token)
+		result ..= printToken(node)
+		return false
 	end
+
+	printer.visitString = function(node: T.AstExprConstantString)
+		result ..= printString(node)
+		return false
+	end
+
+	visitor.visitBlock(block, printer)
 
 	return result
-end
-
-local function printOptional<T>(item: T?, printer: (T) -> string): string
-	if item then
-		return printer(item)
-	else
-		return ""
-	end
-end
-
-local function printExpression(expr: T.AstExpr): string
-	if expr.tag == "string" then
-		return printString(expr)
-	elseif expr.tag == "local" then
-		return printToken(expr.token)
-	elseif expr.tag == "global" then
-		return printToken(expr.name)
-	elseif expr.tag == "call" then
-		return printExpression(expr.func)
-			.. printOptional(expr.openParens, printToken)
-			.. printPunctuated(expr.arguments, printExpression)
-			.. printOptional(expr.closeParens, printToken)
-	elseif expr.tag == "binary" then
-		return printExpression(expr.lhsoperand) .. printToken(expr.operator) .. printExpression(expr.rhsoperand)
-	elseif expr.tag == "table" then
-		-- TODO: print fields
-		return printToken(expr.openBrace) .. printToken(expr.closeBrace)
-	elseif expr.tag == "indexname" then
-		return printExpression(expr.expr) .. printToken(expr.accessor) .. printToken(expr.index)
-	else
-		return exhaustiveMatch(expr.tag)
-	end
-end
-
-function printStatement(stmt: T.AstStat): string
-	if stmt.tag == "block" then
-		return printBlock(stmt)
-	elseif stmt.tag == "expression" then
-		return printExpression(stmt.expression)
-	elseif stmt.tag == "return" then
-		return printToken(stmt["return"]) .. printPunctuated(stmt.expressions, printExpression)
-	elseif stmt.tag == "local" then
-		return printToken(stmt["local"])
-			.. printPunctuated(stmt.variables, printLocal)
-			.. printOptional(stmt.equals, printToken)
-			.. printPunctuated(stmt.values, printExpression)
-	else
-		return exhaustiveMatch(stmt.tag)
-	end
 end
 
 return {

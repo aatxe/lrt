@@ -40,9 +40,8 @@ type Token<Kind = string> = {
 	read trailingTrivia: { Trivia },
 }
 
-type AstExprConstantString = {
+type AstExprConstantString = Token<string> & {
 	tag: "string",
-	value: string,
 	quoteStyle: "single" | "double" | "block" | "interp",
 	blockDepth: number,
 }
@@ -137,19 +136,35 @@ local function printTrivia(trivia: Trivia): string
 	end
 end
 
-local function printToken(token: Token): string
+local function printTriviaList(trivia: { Trivia })
 	local result = ""
-
-	for _, trivia in token.leadingTrivia do
+	for _, trivia in trivia do
 		result ..= printTrivia(trivia)
 	end
+	return result
+end
 
-	result ..= token.text
+local function printToken(token: Token): string
+	return printTriviaList(token.leadingTrivia) .. token.text .. printTriviaList(token.trailingTrivia)
+end
 
-	for _, trivia in token.trailingTrivia do
-		result ..= printTrivia(trivia)
+local function printString(expr: AstExprConstantString): string
+	local result = printTriviaList(expr.leadingTrivia)
+
+	if expr.quoteStyle == "single" then
+		result ..= `'{expr.text}'`
+	elseif expr.quoteStyle == "double" then
+		result ..= `"{expr.text}"`
+	elseif expr.quoteStyle == "block" then
+		local equals = string.rep("=", expr.blockDepth)
+		result ..= `[{equals}[{expr.text}]{equals}]`
+	elseif expr.quoteStyle == "interp" then
+		result ..= "`" .. expr.text .. "`"
+	else
+		return exhaustiveMatch(expr.quoteStyle)
 	end
 
+	result ..= printTriviaList(expr.trailingTrivia)
 	return result
 end
 
@@ -177,18 +192,7 @@ end
 
 local function printExpression(expr: AstExpr): string
 	if expr.tag == "string" then
-		if expr.quoteStyle == "single" then
-			return `'{expr.value}'`
-		elseif expr.quoteStyle == "double" then
-			return `"{expr.value}"`
-		elseif expr.quoteStyle == "block" then
-			local equals = string.rep("=", expr.blockDepth)
-			return `[{equals}[{expr.value}]{equals}]`
-		elseif expr.quoteStyle == "interp" then
-			return "`" .. expr.value .. "`"
-		else
-			return exhaustiveMatch(expr.quoteStyle)
-		end
+		return printString(expr)
 	elseif expr.tag == "global" then
 		return printToken(expr.name)
 	elseif expr.tag == "call" then

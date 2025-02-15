@@ -92,6 +92,8 @@ local function printExpression(expr: T.AstExpr): string
 			.. printOptional(expr.openParens, printToken)
 			.. printPunctuated(expr.arguments, printExpression)
 			.. printOptional(expr.closeParens, printToken)
+	elseif expr.tag == "binary" then
+		return printExpression(expr.lhsoperand) .. printToken(expr.operator) .. printExpression(expr.rhsoperand)
 	elseif expr.tag == "table" then
 		-- TODO: print fields
 		return printToken(expr.openBrace) .. printToken(expr.closeBrace)

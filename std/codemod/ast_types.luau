@@ -83,6 +83,13 @@ export type AstExprIndexExpr = {
 	index: AstExpr,
 }
 
+export type AstExprBinary = {
+	tag: "binary",
+	lhsoperand: AstExpr,
+	operator: Token, -- TODO: enforce token type
+	rhsoperand: AstExpr,
+}
+
 export type AstExprTableItem =
 	| { kind: "list", value: AstExpr }
 	| { kind: "record", key: string, equals: Token<"=">, value: AstExpr }
@@ -102,6 +109,7 @@ export type AstExpr =
 	| AstExprCall
 	| AstExprIndexName
 	| AstExprIndexExpr
+	| AstExprBinary
 	| AstExprTable
 
 export type AstStatBlock = {

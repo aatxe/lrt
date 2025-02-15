@@ -268,61 +268,53 @@ struct AstSerialize : public Luau::AstVisitor
         lua_setfield(L, -2, "location");
     }
 
-    void serialize(Luau::AstExprBinary::Op& op)
+    static std::string toString(Luau::AstExprBinary::Op& op)
     {
         switch (op)
         {
         case Luau::AstExprBinary::Op::Add:
-            lua_pushstring(L, "+");
-            break;
+            return "+";
         case Luau::AstExprBinary::Op::Sub:
-            lua_pushstring(L, "-");
-            break;
+            return "-";
         case Luau::AstExprBinary::Op::Mul:
-            lua_pushstring(L, "*");
-            break;
+            return "*";
         case Luau::AstExprBinary::Op::Div:
-            lua_pushstring(L, "/");
-            break;
+            return "/";
         case Luau::AstExprBinary::Op::FloorDiv:
-            lua_pushstring(L, "//");
-            break;
+            return "//";
         case Luau::AstExprBinary::Op::Mod:
-            lua_pushstring(L, "%");
-            break;
+            return "%";
         case Luau::AstExprBinary::Op::Pow:
-            lua_pushstring(L, "^");
-            break;
+            return "^";
         case Luau::AstExprBinary::Op::Concat:
-            lua_pushstring(L, "..");
-            break;
+            return "..";
         case Luau::AstExprBinary::Op::CompareNe:
-            lua_pushstring(L, "~=");
-            break;
+            return "~=";
         case Luau::AstExprBinary::Op::CompareEq:
-            lua_pushstring(L, "==");
-            break;
+            return "==";
         case Luau::AstExprBinary::Op::CompareLt:
-            lua_pushstring(L, "<");
-            break;
+            return "<";
         case Luau::AstExprBinary::Op::CompareLe:
-            lua_pushstring(L, "<=");
-            break;
+            return "<=";
         case Luau::AstExprBinary::Op::CompareGt:
-            lua_pushstring(L, ">");
-            break;
+            return ">";
         case Luau::AstExprBinary::Op::CompareGe:
-            lua_pushstring(L, ">=");
-            break;
+            return ">=";
         case Luau::AstExprBinary::Op::And:
-            lua_pushstring(L, "and");
-            break;
+            return "and";
         case Luau::AstExprBinary::Op::Or:
-            lua_pushstring(L, "or");
-            break;
+            return "or";
         case Luau::AstExprBinary::Op::Op__Count:
-            luaL_error(L, "encountered illegal operator: Op__Count");
+            return "N/A";
         }
+    }
+
+    void serialize(Luau::AstExprBinary::Op& op)
+    {
+        if (op == Luau::AstExprBinary::Op::Op__Count)
+            luaL_error(L, "encountered illegal operator: Op__Count");
+
+        lua_pushstring(L, toString(op).data());
     }
 
     // preambleSize should encode the size of the fields we're setting up for _all_ nodes.
@@ -732,11 +724,14 @@ struct AstSerialize : public Luau::AstVisitor
 
         serializeNodePreamble(node, "binary");
 
-        serialize(node->op);
-        lua_setfield(L, -2, "operator");
-
         node->left->visit(this);
         lua_setfield(L, -2, "lhsoperand");
+
+        if (const auto cstNode = lookupCstNode<Luau::CstExprOp>(node))
+            serializeToken(cstNode->opPosition, toString(node->op).data());
+        else
+            serialize(node->op);
+        lua_setfield(L, -2, "operator");
 
         node->right->visit(this);
         lua_setfield(L, -2, "rhsoperand");

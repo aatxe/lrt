@@ -83,6 +83,8 @@ end
 local function printExpression(expr: T.AstExpr): string
 	if expr.tag == "string" then
 		return printString(expr)
+	elseif expr.tag == "local" then
+		return printToken(expr.token)
 	elseif expr.tag == "global" then
 		return printToken(expr.name)
 	elseif expr.tag == "call" then
@@ -93,6 +95,8 @@ local function printExpression(expr: T.AstExpr): string
 	elseif expr.tag == "table" then
 		-- TODO: print fields
 		return printToken(expr.openBrace) .. printToken(expr.closeBrace)
+	elseif expr.tag == "indexname" then
+		return printExpression(expr.expr) .. printToken(expr.accessor) .. printToken(expr.index)
 	else
 		return exhaustiveMatch(expr.tag)
 	end

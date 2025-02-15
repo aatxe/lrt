@@ -49,6 +49,13 @@ export type AstExprConstantString = Token<string> & {
 	blockDepth: number,
 }
 
+export type AstExprLocal = {
+	tag: "local",
+	token: Token<string>,
+	["local"]: AstLocal,
+	upvalue: boolean,
+}
+
 export type AstExprGlobal = {
 	tag: "global",
 	name: Token,
@@ -65,12 +72,9 @@ export type AstExprCall = {
 export type AstExprIndexName = {
 	tag: "indexname",
 	expr: AstExpr,
-	index: string,
+	accessor: Token<"." | ":">,
+	index: Token<string>,
 	indexLocation: Location,
-	accessor: {
-		position: Position,
-		value: "." | ":",
-	},
 }
 
 export type AstExprIndexExpr = {
@@ -93,6 +97,7 @@ export type AstExprTable = {
 
 export type AstExpr =
 	| AstExprConstantString
+	| AstExprLocal
 	| AstExprGlobal
 	| AstExprCall
 	| AstExprIndexName

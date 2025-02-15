@@ -553,6 +553,9 @@ struct AstSerialize : public Luau::AstVisitor
 
         serializeNodePreamble(node, "local");
 
+        serializeToken(node->location.begin, node->local->name.value);
+        lua_setfield(L, -2, "token"),
+
         serialize(node->local);
         lua_setfield(L, -2, "local");
 
@@ -620,17 +623,13 @@ struct AstSerialize : public Luau::AstVisitor
         node->expr->visit(this);
         lua_setfield(L, -2, "expr");
 
-        serialize(node->index);
+        serializeToken(node->opPosition, std::string(1, node->op).data());
+        lua_setfield(L, -2, "accessor");
+
+        serializeToken(node->indexLocation.begin, node->index.value);
         lua_setfield(L, -2, "index");
         serialize(node->indexLocation);
         lua_setfield(L, -2, "indexLocation");
-
-        lua_createtable(L, 0, 2);
-        lua_pushlstring(L, &node->op, 1);
-        lua_setfield(L, -2, "value");
-        serialize(node->opPosition);
-        lua_setfield(L, -2, "position");
-        lua_setfield(L, -2, "accessor");
     }
 
     void serialize(Luau::AstExprIndexExpr* node)

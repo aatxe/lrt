@@ -419,14 +419,49 @@ struct AstSerialize : public Luau::AstVisitor
         }
     }
 
-    void serializeTokens(Luau::AstArray<Luau::Position> tokens, const char* text)
+    template<typename T>
+    void serializePunctuated(Luau::AstArray<T> nodes, Luau::AstArray<Luau::Position> separators, const char* separatorText)
     {
         lua_rawcheckstack(L, 2);
-        lua_createtable(L, tokens.size, 0);
+        lua_createtable(L, nodes.size, 0);
 
-        for (size_t i = 0; i < tokens.size; i++)
+        for (size_t i = 0; i < nodes.size; i++)
         {
-            serializeToken(tokens.data[i], text);
+            lua_rawcheckstack(L, 2);
+            lua_createtable(L, 0, 2);
+
+            nodes.data[i]->visit(this);
+            lua_setfield(L, -2, "node");
+
+            if (i < separators.size)
+                serializeToken(separators.data[i], separatorText);
+            else
+                lua_pushnil(L);
+            lua_setfield(L, -2, "separator");
+
+            lua_rawseti(L, -2, i + 1);
+        }
+    }
+
+    void serializePunctuated(Luau::AstArray<Luau::AstLocal*> nodes, Luau::AstArray<Luau::Position> separators, const char* separatorText)
+    {
+        lua_rawcheckstack(L, 2);
+        lua_createtable(L, nodes.size, 0);
+
+        for (size_t i = 0; i < nodes.size; i++)
+        {
+            lua_rawcheckstack(L, 2);
+            lua_createtable(L, 0, 2);
+
+            serialize(nodes.data[i]);
+            lua_setfield(L, -2, "node");
+
+            if (i < separators.size)
+                serializeToken(separators.data[i], separatorText);
+            else
+                lua_pushnil(L);
+            lua_setfield(L, -2, "separator");
+
             lua_rawseti(L, -2, i + 1);
         }
     }
@@ -562,17 +597,11 @@ struct AstSerialize : public Luau::AstVisitor
             lua_pushnil(L);
         lua_setfield(L, -2, "openParens");
 
-        serializeExprs(node->args, 1);
+        serializePunctuated(node->args, cstNode ? cstNode->commaPositions : Luau::AstArray<Luau::Position>{}, ",");
         lua_setfield(L, -2, "arguments");
 
         serialize(node->argLocation);
         lua_setfield(L, -2, "argLocation");
-
-        if (cstNode)
-        {
-            serializeTokens(cstNode->commaPositions, ",");
-            lua_setfield(L, -2, "commas");
-        }
 
         if (cstNode && cstNode->closeParens)
             serializeToken(*cstNode->closeParens, ")");
@@ -886,14 +915,9 @@ struct AstSerialize : public Luau::AstVisitor
         serializeToken(node->location.begin, "return");
         lua_setfield(L, -2, "return");
 
-        serializeExprs(node->list);
+        const auto cstNode = lookupCstNode<Luau::CstStatReturn>(node);
+        serializePunctuated(node->list, cstNode ? cstNode->commaPositions : Luau::AstArray<Luau::Position>{}, ",");
         lua_setfield(L, -2, "expressions");
-
-        if (const auto cstNode = lookupCstNode<Luau::CstStatReturn>(node))
-        {
-            serializeTokens(cstNode->commaPositions, ",");
-            lua_setfield(L, -2, "commas");
-        }
     }
 
     void serializeStat(Luau::AstStatExpr* node)
@@ -917,7 +941,8 @@ struct AstSerialize : public Luau::AstVisitor
         serializeToken(node->location.begin, "local");
         lua_setfield(L, -2, "local");
 
-        serializeLocals(node->vars);
+        const auto cstNode = lookupCstNode<Luau::CstStatLocal>(node);
+        serializePunctuated(node->vars, cstNode ? cstNode->varsCommaPositions : Luau::AstArray<Luau::Position>{}, ",");
         lua_setfield(L, -2, "variables");
 
         if (node->equalsSignLocation)
@@ -926,17 +951,8 @@ struct AstSerialize : public Luau::AstVisitor
             lua_pushnil(L);
         lua_setfield(L, -2, "equals");
 
-        serializeExprs(node->values);
+        serializePunctuated(node->values, cstNode ? cstNode->valuesCommaPositions : Luau::AstArray<Luau::Position>{}, ",");
         lua_setfield(L, -2, "values");
-
-        if (const auto cstNode = lookupCstNode<Luau::CstStatLocal>(node))
-        {
-            serializeTokens(cstNode->varsCommaPositions, ",");
-            lua_setfield(L, -2, "variablesCommas");
-
-            serializeTokens(cstNode->valuesCommaPositions, ",");
-            lua_setfield(L, -2, "valuesCommas");
-        }
     }
 
     void serializeStat(Luau::AstStatFor* node)

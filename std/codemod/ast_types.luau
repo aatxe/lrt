@@ -36,6 +36,9 @@ export type Token<Kind = string> = {
 	read trailingTrivia: { Trivia },
 }
 
+export type Pair<T, Separator> = { node: T, separator: Token<Separator>? }
+export type Punctuated<T, Separator = ","> = { Pair<T, Separator> }
+
 export type AstLocal = {
 	name: Token<string>,
 }
@@ -54,9 +57,8 @@ export type AstExprGlobal = {
 export type AstExprCall = {
 	tag: "call",
 	func: AstExpr, -- TODO: stricter?
-	arguments: { AstExpr },
 	openParens: Token<"(">?,
-	commas: { Token<","> },
+	arguments: Punctuated<AstExpr>,
 	closeParens: Token<")">?,
 }
 
@@ -90,7 +92,7 @@ export type AstExprTable = {
 }
 
 export type AstExpr =
-	AstExprConstantString
+	| AstExprConstantString
 	| AstExprGlobal
 	| AstExprCall
 	| AstExprIndexName
@@ -105,8 +107,7 @@ export type AstStatBlock = {
 export type AstStatReturn = {
 	tag: "return",
 	["return"]: Token<"return">,
-	expressions: { AstExpr },
-	commas: { Token<","> },
+	expressions: Punctuated<AstExpr>,
 }
 
 export type AstStatExpr = {
@@ -117,11 +118,9 @@ export type AstStatExpr = {
 export type AstStatLocal = {
 	tag: "local",
 	["local"]: Token<"local">,
-	variables: { AstLocal },
-	variablesCommas: { Token<","> },
+	variables: Punctuated<AstLocal>,
 	equals: Token<"=">?,
-	values: { AstExpr },
-	valuesCommas: { Token<","> },
+	values: Punctuated<AstExpr>,
 }
 
 export type AstStat = AstStatBlock | AstStatReturn | AstStatExpr | AstStatLocal

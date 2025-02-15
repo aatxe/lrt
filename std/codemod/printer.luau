@@ -58,14 +58,14 @@ local function printLocal(node: T.AstLocal): string
 	return printToken(node.name)
 end
 
-local function printCommaSeparatedList<T>(list: { T }, commas: { T.Token<","> }, printer: (T) -> string): string
+local function printPunctuated<T, Separator>(list: T.Punctuated<T, Separator>, printer: (T) -> string): string
 	local result = ""
 
 	for i, item in list do
-		result ..= printer(item)
+		result ..= printer(item.node)
 
-		if i ~= 1 then
-			printToken(commas[i - 1])
+		if item.separator then
+			printToken(item.separator)
 		end
 	end
 
@@ -88,7 +88,7 @@ local function printExpression(expr: T.AstExpr): string
 	elseif expr.tag == "call" then
 		return printExpression(expr.func)
 			.. printOptional(expr.openParens, printToken)
-			.. printCommaSeparatedList(expr.arguments, expr.commas, printExpression)
+			.. printPunctuated(expr.arguments, printExpression)
 			.. printOptional(expr.closeParens, printToken)
 	elseif expr.tag == "table" then
 		-- TODO: print fields
@@ -104,12 +104,12 @@ function printStatement(stmt: T.AstStat): string
 	elseif stmt.tag == "expression" then
 		return printExpression(stmt.expression)
 	elseif stmt.tag == "return" then
-		return printToken(stmt["return"]) .. printCommaSeparatedList(stmt.expressions, stmt.commas, printExpression)
+		return printToken(stmt["return"]) .. printPunctuated(stmt.expressions, printExpression)
 	elseif stmt.tag == "local" then
 		return printToken(stmt["local"])
-			.. printCommaSeparatedList(stmt.variables, stmt.variablesCommas, printLocal)
+			.. printPunctuated(stmt.variables, printLocal)
 			.. printOptional(stmt.equals, printToken)
-			.. printCommaSeparatedList(stmt.values, stmt.valuesCommas, printExpression)
+			.. printPunctuated(stmt.values, printExpression)
 	else
 		return exhaustiveMatch(stmt.tag)
 	end

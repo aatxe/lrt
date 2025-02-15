@@ -221,7 +221,7 @@ struct AstSerialize : public Luau::AstVisitor
             lua_pushvalue(L, -2);
             lua_settable(L, localTableIndex);
 
-            serialize(local->name);
+            serializeToken(local->location.begin, local->name.value);
             lua_setfield(L, -2, "name");
 
             if (local->shadow)
@@ -546,6 +546,8 @@ struct AstSerialize : public Luau::AstVisitor
 
     void serialize(Luau::AstExprCall* node)
     {
+        const auto cstNode = lookupCstNode<Luau::CstExprCall>(node);
+
         lua_rawcheckstack(L, 2);
         lua_createtable(L, 0, preambleSize + 5);
 
@@ -554,29 +556,29 @@ struct AstSerialize : public Luau::AstVisitor
         node->func->visit(this);
         lua_setfield(L, -2, "func");
 
+        if (cstNode && cstNode->openParens)
+            serializeToken(*cstNode->openParens, "(");
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "openParens");
+
         serializeExprs(node->args, 1);
         lua_setfield(L, -2, "arguments");
 
         serialize(node->argLocation);
         lua_setfield(L, -2, "argLocation");
 
-        if (const auto cstNode = lookupCstNode<Luau::CstExprCall>(node))
+        if (cstNode)
         {
-            if (cstNode->openParens)
-                serializeToken(*cstNode->openParens, "(");
-            else
-                lua_pushnil(L);
-            lua_setfield(L, -2, "openParens");
-
             serializeTokens(cstNode->commaPositions, ",");
             lua_setfield(L, -2, "commas");
-
-            if (cstNode->closeParens)
-                serializeToken(*cstNode->closeParens, ")");
-            else
-                lua_pushnil(L);
-            lua_setfield(L, -2, "closeParens");
         }
+
+        if (cstNode && cstNode->closeParens)
+            serializeToken(*cstNode->closeParens, ")");
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "closeParens");
     }
 
     void serialize(Luau::AstExprIndexName* node)
@@ -912,17 +914,29 @@ struct AstSerialize : public Luau::AstVisitor
 
         serializeNodePreamble(node, "local");
 
+        serializeToken(node->location.begin, "local");
+        lua_setfield(L, -2, "local");
+
         serializeLocals(node->vars);
         lua_setfield(L, -2, "variables");
+
+        if (node->equalsSignLocation)
+            serializeToken(node->equalsSignLocation->begin, "=");
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "equals");
 
         serializeExprs(node->values);
         lua_setfield(L, -2, "values");
 
-        if (node->equalsSignLocation)
-            serialize(*node->equalsSignLocation);
-        else
-            lua_pushnil(L);
-        lua_setfield(L, -2, "equalsSignLocation");
+        if (const auto cstNode = lookupCstNode<Luau::CstStatLocal>(node))
+        {
+            serializeTokens(cstNode->varsCommaPositions, ",");
+            lua_setfield(L, -2, "variablesCommas");
+
+            serializeTokens(cstNode->valuesCommaPositions, ",");
+            lua_setfield(L, -2, "valuesCommas");
+        }
     }
 
     void serializeStat(Luau::AstStatFor* node)

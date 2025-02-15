@@ -7,4 +7,5 @@ local function identityTransform(ctx: codemod.Context)
 	return parser.print(cst)
 end
 
+codemod.apply("examples/a.luau", identityTransform)
 codemod.apply("examples/b.luau", identityTransform)

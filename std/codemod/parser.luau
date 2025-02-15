@@ -40,6 +40,10 @@ type Token<Kind = string> = {
 	read trailingTrivia: { Trivia },
 }
 
+type AstLocal = {
+	name: Token<string>,
+}
+
 type AstExprConstantString = Token<string> & {
 	tag: "string",
 	quoteStyle: "single" | "double" | "block" | "interp",
@@ -108,7 +112,17 @@ type AstStatExpr = {
 	expression: AstExpr,
 }
 
-type AstStat = AstStatBlock | AstStatReturn | AstStatExpr
+type AstStatLocal = {
+	tag: "local",
+	["local"]: Token<"local">,
+	variables: { AstLocal },
+	variablesCommas: { Token<","> },
+	equals: Token<"=">?,
+	values: { AstExpr },
+	valuesCommas: { Token<","> },
+}
+
+type AstStat = AstStatBlock | AstStatReturn | AstStatExpr | AstStatLocal
 
 local function exhaustiveMatch(value: never): never
 	error(`Unknown value in exhaustive match: {value}`)
@@ -168,6 +182,10 @@ local function printString(expr: AstExprConstantString): string
 	return result
 end
 
+local function printLocal(node: AstLocal): string
+	return printToken(node.name)
+end
+
 local function printCommaSeparatedList<T>(list: { T }, commas: { Token<","> }, printer: (T) -> string): string
 	local result = ""
 
@@ -215,6 +233,11 @@ function printStatement(stmt: AstStat): string
 		return printExpression(stmt.expression)
 	elseif stmt.tag == "return" then
 		return printToken(stmt["return"]) .. printCommaSeparatedList(stmt.expressions, stmt.commas, printExpression)
+	elseif stmt.tag == "local" then
+		return printToken(stmt["local"])
+			.. printCommaSeparatedList(stmt.variables, stmt.variablesCommas, printLocal)
+			.. printOptional(stmt.equals, printToken)
+			.. printCommaSeparatedList(stmt.values, stmt.valuesCommas, printExpression)
 	else
 		return exhaustiveMatch(stmt.tag)
 	end

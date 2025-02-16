@@ -43,6 +43,9 @@ export type AstLocal = {
 	name: Token<string>,
 }
 
+export type AstExprConstantBool = Token<"true" | "false"> & { tag: "boolean", value: boolean }
+
+
 export type AstExprConstantString = Token<string> & {
 	tag: "string",
 	quoteStyle: "single" | "double" | "block" | "interp",
@@ -83,6 +86,29 @@ export type AstExprIndexExpr = {
 	index: AstExpr,
 }
 
+export type AstExprTableItem = | { kind: "list", value: AstExpr, separator: Token<"," | ";">? } | {
+	kind: "record",
+	key: Token<string>,
+	equals: Token<"=">,
+	value: AstExpr,
+	separator: Token<"," | ";">?,
+} | {
+	kind: "general",
+	indexerOpen: Token<"[">,
+	key: AstExpr,
+	indexerClose: Token<"]">,
+	equals: Token<"=">,
+	value: AstExpr,
+	separator: Token<"," | ";">?,
+}
+
+export type AstExprTable = {
+	tag: "table",
+	openBrace: Token<"{">,
+	entries: { AstExprTableItem },
+	closeBrace: Token<"}">,
+}
+
 export type AstExprBinary = {
 	tag: "binary",
 	lhsoperand: AstExpr,
@@ -90,27 +116,16 @@ export type AstExprBinary = {
 	rhsoperand: AstExpr,
 }
 
-export type AstExprTableItem =
-	| { kind: "list", value: AstExpr }
-	| { kind: "record", key: string, equals: Token<"=">, value: AstExpr }
-	| { kind: "general", key: string, equals: Token<"=">, value: AstExpr }
-
-export type AstExprTable = {
-	tag: "table",
-	openBrace: Token<"{">,
-	entries: { never },
-	closeBrace: Token<"}">,
-}
-
 export type AstExpr =
+	| AstExprConstantBool
 	| AstExprConstantString
 	| AstExprLocal
 	| AstExprGlobal
 	| AstExprCall
 	| AstExprIndexName
 	| AstExprIndexExpr
-	| AstExprBinary
 	| AstExprTable
+	| AstExprBinary
 
 export type AstStatBlock = {
 	tag: "block",

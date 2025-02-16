@@ -11,11 +11,13 @@ type Visitor = {
 	visitGlobal: (T.AstExprGlobal) -> boolean,
 	visitCall: (T.AstExprCall) -> boolean,
 	visitBinary: (T.AstExprBinary) -> boolean,
+	visitTableItem: (T.AstExprTableItem) -> boolean,
 	visitTable: (T.AstExprTable) -> boolean,
 	visitIndexName: (T.AstExprIndexName) -> boolean,
 
 	visitToken: (T.Token) -> boolean,
 	visitString: (T.AstExprConstantString) -> boolean,
+	visitBoolean: (T.AstExprConstantBool) -> boolean,
 	visitLocal: (T.AstLocal) -> boolean,
 }
 
@@ -32,11 +34,13 @@ local defaultVisitor: Visitor = {
 	visitGlobal = alwaysVisit :: any,
 	visitCall = alwaysVisit :: any,
 	visitBinary = alwaysVisit :: any,
+	visitTableItem = alwaysVisit :: any,
 	visitTable = alwaysVisit :: any,
 	visitIndexName = alwaysVisit :: any,
 
 	visitToken = alwaysVisit :: any,
 	visitString = alwaysVisit :: any,
+	visitBoolean = alwaysVisit :: any,
 	visitLocal = alwaysVisit :: any,
 }
 
@@ -95,6 +99,12 @@ local function visitString(node: T.AstExprConstantString, visitor: Visitor)
 	end
 end
 
+local function visitBoolean(node: T.AstExprConstantBool, visitor: Visitor)
+	if visitor.visitBoolean(node) then
+		visitToken(node, visitor)
+	end
+end
+
 local function visitLocalReference(node: T.AstExprLocal, visitor: Visitor)
 	if visitor.visitLocalReference(node) then
 		visitor.visitToken(node.token)
@@ -128,10 +138,36 @@ local function visitBinary(node: T.AstExprBinary, visitor: Visitor)
 	end
 end
 
+local function visitTableItem(node: T.AstExprTableItem, visitor: Visitor)
+	if visitor.visitTableItem(node) then
+		if node.kind == "list" then
+			visitExpression(node.value, visitor)
+		elseif node.kind == "record" then
+			visitToken(node.key, visitor)
+			visitToken(node.equals, visitor)
+			visitExpression(node.value, visitor)
+		elseif node.kind == "general" then
+			visitToken(node.indexerOpen, visitor)
+			visitExpression(node.key, visitor)
+			visitToken(node.indexerClose, visitor)
+			visitToken(node.equals, visitor)
+			visitExpression(node.value, visitor)
+		else
+			exhaustiveMatch(node.kind)
+		end
+
+		if node.separator then
+			visitToken(node.separator, visitor)
+		end
+	end
+end
+
 local function visitTable(node: T.AstExprTable, visitor: Visitor)
 	if visitor.visitTable(node) then
 		visitToken(node.openBrace, visitor)
-		-- TODO: visit entries
+		for _, item in node.entries do
+			visitTableItem(item, visitor)
+		end
 		visitToken(node.closeBrace, visitor)
 	end
 end
@@ -145,7 +181,9 @@ local function visitIndexName(node: T.AstExprIndexName, visitor: Visitor)
 end
 
 function visitExpression(expression: T.AstExpr, visitor: Visitor)
-	if expression.tag == "string" then
+	if expression.tag == "boolean" then
+		visitBoolean(expression, visitor)
+	elseif expression.tag == "string" then
 		visitString(expression, visitor)
 	elseif expression.tag == "local" then
 		visitLocalReference(expression, visitor)

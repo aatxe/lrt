@@ -121,6 +121,7 @@ local function test_roundtrippableAst()
 	local files = {
 		"examples/a.luau",
 		"examples/b.luau",
+		"examples/json.luau",
 	}
 
 	for _, path in files do

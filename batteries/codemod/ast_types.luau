@@ -45,6 +45,7 @@ export type AstLocal = {
 
 export type AstExprConstantBool = Token<"true" | "false"> & { tag: "boolean", value: boolean }
 
+export type AstExprConstantNumber = Token<string> & { tag: "number", value: number }
 
 export type AstExprConstantString = Token<string> & {
 	tag: "string",
@@ -118,6 +119,7 @@ export type AstExprBinary = {
 
 export type AstExpr =
 	| AstExprConstantBool
+	| AstExprConstantNumber
 	| AstExprConstantString
 	| AstExprLocal
 	| AstExprGlobal

@@ -11,3 +11,6 @@ end
 codemod.apply("examples/a.luau", identityTransform)
 codemod.apply("examples/b.luau", identityTransform)
 codemod.apply("examples/json.luau", identityTransform)
+codemod.apply("examples/main.luau", identityTransform)
+codemod.apply("examples/parsing.luau", identityTransform)
+codemod.apply("examples/time_example.luau", identityTransform)

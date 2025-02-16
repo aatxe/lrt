@@ -598,9 +598,7 @@ struct AstSerialize : public Luau::AstVisitor
 
     void serialize(Luau::AstExprConstantNil* node)
     {
-        lua_rawcheckstack(L, 2);
-        lua_createtable(L, 0, preambleSize);
-
+        serializeToken(node->location.begin, "nil", preambleSize);
         serializeNodePreamble(node, "nil");
     }
 
@@ -951,29 +949,41 @@ struct AstSerialize : public Luau::AstVisitor
 
         serializeNodePreamble(node, "conditional");
 
+        serializeToken(node->location.begin, "if");
+        lua_setfield(L, -2, "if");
+
         node->condition->visit(this);
         lua_setfield(L, -2, "condition");
+
+        serializeToken(node->thenLocation->begin, "then");
+        lua_setfield(L, -2, "then");
 
         node->thenbody->visit(this);
         lua_setfield(L, -2, "consequent");
 
         if (node->elsebody)
+        {
+            LUAU_ASSERT(node->elseLocation);
+            serializeToken(node->elseLocation->begin, "else");
+            lua_setfield(L, -2, "else");
+
             node->elsebody->visit(this);
-        else
-            lua_pushnil(L);
-        lua_setfield(L, -2, "antecedent");
+            lua_setfield(L, -2, "antecedent");
 
-        if (node->thenLocation)
-            serialize(*node->thenLocation);
+            serializeToken(node->elsebody->location.end, "end");
+            lua_setfield(L, -2, "end");
+        }
         else
+        {
             lua_pushnil(L);
-        lua_setfield(L, -2, "thenLocation");
+            lua_setfield(L, -2, "else");
 
-        if (node->elseLocation)
-            serialize(*node->elseLocation);
-        else
             lua_pushnil(L);
-        lua_setfield(L, -2, "elseLocation");
+            lua_setfield(L, -2, "antecedent");
+
+            serializeToken(node->thenbody->location.end, "end");
+            lua_setfield(L, -2, "end");
+        }
     }
 
     void serializeStat(Luau::AstStatWhile* node)

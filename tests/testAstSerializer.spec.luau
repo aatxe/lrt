@@ -125,6 +125,7 @@ local function test_roundtrippableAst()
 		"examples/main.luau",
 		"examples/parsing.luau",
 		"examples/time_example.luau",
+		"examples/writeFile.luau",
 	}
 
 	for _, path in files do

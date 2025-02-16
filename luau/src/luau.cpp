@@ -615,9 +615,9 @@ struct AstSerialize : public Luau::AstVisitor
 
     void serialize(Luau::AstExprConstantNumber* node)
     {
-        lua_rawcheckstack(L, 2);
-        lua_createtable(L, 0, preambleSize + 1);
+        const auto cstNode = lookupCstNode<Luau::CstExprConstantNumber>(node);
 
+        serializeToken(node->location.begin, cstNode ? cstNode->value.data : std::to_string(node->value).data(), preambleSize + 1);
         serializeNodePreamble(node, "number");
 
         lua_pushnumber(L, node->value);

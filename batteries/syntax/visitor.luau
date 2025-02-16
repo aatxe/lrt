@@ -18,6 +18,7 @@ type Visitor = {
 	visitToken: (T.Token) -> boolean,
 	visitString: (T.AstExprConstantString) -> boolean,
 	visitBoolean: (T.AstExprConstantBool) -> boolean,
+	visitNumber: (T.AstExprConstantNumber) -> boolean,
 	visitLocal: (T.AstLocal) -> boolean,
 }
 
@@ -41,6 +42,7 @@ local defaultVisitor: Visitor = {
 	visitToken = alwaysVisit :: any,
 	visitString = alwaysVisit :: any,
 	visitBoolean = alwaysVisit :: any,
+	visitNumber = alwaysVisit :: any,
 	visitLocal = alwaysVisit :: any,
 }
 
@@ -101,6 +103,12 @@ end
 
 local function visitBoolean(node: T.AstExprConstantBool, visitor: Visitor)
 	if visitor.visitBoolean(node) then
+		visitToken(node, visitor)
+	end
+end
+
+local function visitNumber(node: T.AstExprConstantNumber, visitor: Visitor)
+	if visitor.visitNumber(node) then
 		visitToken(node, visitor)
 	end
 end
@@ -183,6 +191,8 @@ end
 function visitExpression(expression: T.AstExpr, visitor: Visitor)
 	if expression.tag == "boolean" then
 		visitBoolean(expression, visitor)
+	elseif expression.tag == "number" then
+		visitNumber(expression, visitor)
 	elseif expression.tag == "string" then
 		visitString(expression, visitor)
 	elseif expression.tag == "local" then

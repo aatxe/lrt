@@ -10,3 +10,4 @@ end
 
 codemod.apply("examples/a.luau", identityTransform)
 codemod.apply("examples/b.luau", identityTransform)
+codemod.apply("examples/json.luau", identityTransform)

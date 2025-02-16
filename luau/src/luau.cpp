@@ -302,30 +302,72 @@ struct AstSerialize : public Luau::AstVisitor
         }
     }
 
-    void serialize(Luau::AstExprTable::Item& item)
+    void serialize(Luau::AstExprTable::Item& item, Luau::CstExprTable::Item* cstNode)
     {
         lua_rawcheckstack(L, 2);
-        lua_createtable(L, 0, 3);
+        lua_createtable(L, 0, 6);
 
-        switch (item.kind)
+        if (item.kind == Luau::AstExprTable::Item::List)
         {
-        case Luau::AstExprTable::Item::Kind::List:
             lua_pushstring(L, "list");
-            break;
-        case Luau::AstExprTable::Item::Kind::Record:
-            lua_pushstring(L, "record");
-            break;
-        case Luau::AstExprTable::Item::Kind::General:
-            lua_pushstring(L, "general");
-            break;
+            lua_setfield(L, -2, "kind");
         }
-        lua_setfield(L, -2, "kind");
+        else if (item.kind == Luau::AstExprTable::Item::Record)
+        {
+            lua_pushstring(L, "record");
+            lua_setfield(L, -2, "kind");
 
-        visit(item.key);
-        lua_setfield(L, -2, "key");
+            const auto& value = item.key->as<Luau::AstExprConstantString>()->value;
+            serializeToken(item.key->location.begin, std::string(value.data, value.size).data());
+            lua_setfield(L, -2, "key");
 
-        visit(item.value);
-        lua_setfield(L, -2, "value");
+            if (cstNode && cstNode->equalsPosition)
+            {
+                serializeToken(cstNode->equalsPosition.value(), "=");
+                lua_setfield(L, -2, "equals");
+            }
+
+            visit(item.value);
+            lua_setfield(L, -2, "value");
+        }
+        else if (item.kind == Luau::AstExprTable::Item::General)
+        {
+            lua_pushstring(L, "record");
+            lua_setfield(L, -2, "kind");
+
+            if (cstNode && cstNode->indexerOpenPosition)
+            {
+                serializeToken(cstNode->indexerOpenPosition.value(), "[");
+                lua_setfield(L, -2, "indexerOpen");
+            }
+
+            visit(item.key);
+            lua_setfield(L, -2, "key");
+
+            if (cstNode)
+            {
+                if (cstNode->equalsPosition)
+                {
+                    serializeToken(cstNode->equalsPosition.value(), "=");
+                    lua_setfield(L, -2, "equals");
+                }
+
+                if (cstNode->indexerClosePosition)
+                {
+                    serializeToken(cstNode->indexerClosePosition.value(), "]");
+                    lua_setfield(L, -2, "indexerClose");
+                }
+            }
+
+            visit(item.value);
+            lua_setfield(L, -2, "value");
+        }
+
+        if (cstNode && cstNode->separator)
+            serializeToken(cstNode->separatorPosition.value(), cstNode->separator.value() == Luau::CstExprTable::Comma ? "," : ";");
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "separator");
     }
 
     void withLocation(Luau::Location location)
@@ -334,53 +376,12 @@ struct AstSerialize : public Luau::AstVisitor
         lua_setfield(L, -2, "location");
     }
 
-    static std::string toString(Luau::AstExprBinary::Op& op)
-    {
-        switch (op)
-        {
-        case Luau::AstExprBinary::Op::Add:
-            return "+";
-        case Luau::AstExprBinary::Op::Sub:
-            return "-";
-        case Luau::AstExprBinary::Op::Mul:
-            return "*";
-        case Luau::AstExprBinary::Op::Div:
-            return "/";
-        case Luau::AstExprBinary::Op::FloorDiv:
-            return "//";
-        case Luau::AstExprBinary::Op::Mod:
-            return "%";
-        case Luau::AstExprBinary::Op::Pow:
-            return "^";
-        case Luau::AstExprBinary::Op::Concat:
-            return "..";
-        case Luau::AstExprBinary::Op::CompareNe:
-            return "~=";
-        case Luau::AstExprBinary::Op::CompareEq:
-            return "==";
-        case Luau::AstExprBinary::Op::CompareLt:
-            return "<";
-        case Luau::AstExprBinary::Op::CompareLe:
-            return "<=";
-        case Luau::AstExprBinary::Op::CompareGt:
-            return ">";
-        case Luau::AstExprBinary::Op::CompareGe:
-            return ">=";
-        case Luau::AstExprBinary::Op::And:
-            return "and";
-        case Luau::AstExprBinary::Op::Or:
-            return "or";
-        case Luau::AstExprBinary::Op::Op__Count:
-            return "N/A";
-        }
-    }
-
     void serialize(Luau::AstExprBinary::Op& op)
     {
         if (op == Luau::AstExprBinary::Op::Op__Count)
             luaL_error(L, "encountered illegal operator: Op__Count");
 
-        lua_pushstring(L, toString(op).data());
+        lua_pushstring(L, Luau::toString(op).data());
     }
 
     // preambleSize should encode the size of the fields we're setting up for _all_ nodes.
@@ -556,9 +557,7 @@ struct AstSerialize : public Luau::AstVisitor
 
     void serialize(Luau::AstExprConstantBool* node)
     {
-        lua_rawcheckstack(L, 2);
-        lua_createtable(L, 0, preambleSize + 1);
-
+        serializeToken(node->location.begin, node->value ? "true" : "false", preambleSize + 1);
         serializeNodePreamble(node, "boolean");
 
         lua_pushboolean(L, node->value);
@@ -749,6 +748,8 @@ struct AstSerialize : public Luau::AstVisitor
 
     void serialize(Luau::AstExprTable* node)
     {
+        const auto cstNode = lookupCstNode<Luau::CstExprTable>(node);
+
         lua_rawcheckstack(L, 3);
         lua_createtable(L, 0, preambleSize + 3);
 
@@ -760,7 +761,7 @@ struct AstSerialize : public Luau::AstVisitor
         lua_createtable(L, node->items.size, 0);
         for (size_t i = 0; i < node->items.size; i++)
         {
-            serialize(node->items.data[i]);
+            serialize(node->items.data[i], cstNode ? &cstNode->items.data[i] : nullptr);
             lua_rawseti(L, -2, i + 1);
         }
         lua_setfield(L, -2, "entries");

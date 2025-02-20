@@ -11,7 +11,6 @@ namespace task
         runtime->runningThreads.push_back({ true, getRefForThread(L), 0 });
         return lua_yield(L, 0);
     }
-
 } // namespace task
 
 int luaopen_task(lua_State* L)
@@ -33,6 +32,8 @@ int luteopen_task(lua_State* L)
         lua_pushcfunction(L, func, name);
         lua_setfield(L, -2, name);
     }
+
+    lua_setreadonly(L, -1, 1);
 
     return 1;
 }

@@ -71,8 +71,8 @@ local function awaitall(...: task)
     return table.unpack(results)
 end
 
-return {
+return table.freeze({
     create = create,
     await = await,
     awaitall = awaitall,
-}
+})

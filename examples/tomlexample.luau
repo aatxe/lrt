@@ -25,6 +25,6 @@ age = 33
 
 local serialized = toml.serialize(deserialized)
 
-print("serialized", serialized)
+print(serialized)
 
-print("deserialized", deserialized)
+print(deserialized)

@@ -1,7 +1,6 @@
 local toml = {}
 
 -- serialization
-
 type SerializerState = {
 	buf: buffer,
 	cursor: number,
@@ -22,25 +21,6 @@ local function write_string(state: SerializerState, str: string)
 	state.cursor += string.len(str)
 end
 
-local function table_to_toml(tbl, parent)
-	local result = ""
-	for k, v in pairs(tbl) do
-		local key = parent and (parent .. "." .. k) or k
-		if typeof(v) == "table" then
-			if #v > 0 then  -- Array of tables
-				for _, entry in ipairs(v) do
-					result = result .. "\n[[" .. key .. "]]\n" .. table_to_toml(entry, nil)
-				end
-			else
-				result = result .. "\n[" .. key .. "]\n" .. table_to_toml(v, key)
-			end
-		else
-			result = result .. key .. " = " .. tostring(v) .. "\n"
-		end
-	end
-	return result
-end
-
 local function serialize_value(value)
 	if typeof(value) == "string" then
 		value = string.gsub(value, '\\', '\\\\')
@@ -48,49 +28,70 @@ local function serialize_value(value)
 		value = string.gsub(value, '\t', '\\t')
 		return "\"" .. value .. "\""
 	elseif value == math.huge then
-		return math.huge
+		return "inf"
 	elseif value == -math.huge then
-		return -math.huge
-	elseif value ~= value then
+		return "-inf"
+	elseif value ~= value then -- NaN check
 		return "nan"
-	elseif typeof(value) == "table" then
-		return table_to_toml(value, nil)
 	else
 		return tostring(value)
 	end
 end
 
-local function serialize(tbl: {}): string
-	local state: SerializerState = {
-		buf = buffer.create(1024),
-		cursor = 0,
-	}
+local function has_nested_tables(tbl)
+	for _, v in pairs(tbl) do
+		if typeof(v) == "table" and next(v) ~= nil then
+			return true
+		end
+	end
+	return false
+end
 
-	for key, value in pairs(tbl) do
-		if typeof(value) == "table" then
-			if #value > 0 then
-				for _, entry in ipairs(value) do
-					write_string(state, "[[" .. key .. "]]\n")
-					for k, v in pairs(entry) do
-						write_string(state, k .. " = " .. serialize_value(v) .. "\n")
-					end
+local function table_to_toml(tbl, parent)
+	local result = ""
+	local sub_tables = {}
+	local hasDirectValues = false
+
+	for k, v in pairs(tbl) do
+		if typeof(v) == "table" and next(v) ~= nil then
+			if #v > 0 then -- Detect array of tables
+				for _, entry in ipairs(v) do
+					result = result .. "\n[[" .. (parent and parent .. "." or "") .. k .. "]]\n"
+					result = result .. table_to_toml(entry, nil)
 				end
-			elseif next(value) ~= nil then
-				write_string(state, "[" .. key .. "]\n")
-				for k, v in pairs(value) do
-					write_string(state, k .. " = " .. serialize_value(v) .. "\n")
-				end
+			else
+				sub_tables[k] = v
 			end
 		else
-			write_string(state, key .. " = " .. serialize_value(value) .. "\n")
+			hasDirectValues = true
+			result = result .. k .. " = " .. serialize_value(v) .. "\n"
 		end
 	end
 
-	return buffer.readstring(state.buf, 0, state.cursor)
+	for k, v in pairs(sub_tables) do
+		local key = parent and (parent .. "." .. k) or k
+		
+		if has_nested_tables(v) == true then
+			result = result .. table_to_toml(v, key)
+			continue
+		end
+
+		if hasDirectValues or parent then
+			result = result .. "\n[" .. key .. "]\n"
+		end
+
+		result = result .. table_to_toml(v, key)
+	end
+
+	return result
+end
+
+
+local function serialize(tbl: {}): string
+	return table_to_toml(tbl, nil)
 end
 
 -- deserialization
-
 type DeserializerState = {
 	buf: string,
 	cursor: number,
@@ -125,30 +126,26 @@ local function deserialize(input: string)
 		local line = read_line(state)
 
 		if line == "" or string.sub(line, 1, 1) == "#" then
-			-- ignore comments and empty lines
-		elseif string.match(line, "^%[(.-)%.(.-)%]$") then
-			local parentTable, childTable = string.match(line, "^%[(.-)%.(.-)%]$")
-			result[parentTable] = result[parentTable] or {}
-			result[parentTable][childTable] = result[parentTable][childTable] or {}
-			currentTable = result[parentTable][childTable]
-		elseif string.match(line, "^%[%[(.-)%]%]$") then
+			-- Ignore comments and empty lines
+		elseif string.match(line, "^%[%[(.-)%]%]$") then -- Array of tables
 			local tableName = string.match(line, "^%[%[(.-)%]%]$")
 			arrayTables[tableName] = arrayTables[tableName] or {}
-
 			local newEntry = {}
 			table.insert(arrayTables[tableName], newEntry)
-
 			result[tableName] = arrayTables[tableName]
 			currentTable = newEntry
 		elseif string.match(line, "^%[(.-)%]$") then
-			local tableName = string.match(line, "^%[(.-)%]$")
-			result[tableName] = result[tableName] or {}
-			currentTable = result[tableName]
+			local tablePath = string.match(line, "^%[(.-)%]$")
+			local parent = result
+			for section in string.gmatch(tablePath, "([^.]+)") do
+				if not parent[section] then parent[section] = {} end
+				parent = parent[section]
+			end
+			currentTable = parent
 		elseif string.match(line, "^(.-)%s*=%s*(.-)$") then
 			local key, value = string.match(line, "^(.-)%s*=%s*(.-)$")
 			key = string.match(key, "^%s*(.-)%s*$")
 			value = string.match(value, "^%s*(.-)%s*$")
-
 			if string.match(value, '^"(.*)"$') or string.match(value, "^'(.*)'$") then
 				value = string.sub(value, 2, -2)
 				value = string.gsub(value, '\\\\', '\\')
@@ -167,7 +164,6 @@ local function deserialize(input: string)
 			elseif value == "nan" then
 				value = 0/0
 			end
-
 			currentTable[key] = value
 		end
 	end
@@ -176,7 +172,6 @@ local function deserialize(input: string)
 end
 
 -- user-facing
-
 toml.serialize = serialize
 toml.deserialize = deserialize
 

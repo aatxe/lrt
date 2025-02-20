@@ -31,7 +31,7 @@ local function serialize_value(value)
 		return "inf"
 	elseif value == -math.huge then
 		return "-inf"
-	elseif value ~= value then -- NaN check
+	elseif value ~= value then
 		return "nan"
 	else
 		return tostring(value)
@@ -54,7 +54,7 @@ local function table_to_toml(tbl, parent)
 
 	for k, v in pairs(tbl) do
 		if typeof(v) == "table" and next(v) ~= nil then
-			if #v > 0 then -- Detect array of tables
+			if #v > 0 then
 				for _, entry in ipairs(v) do
 					result = result .. "\n[[" .. (parent and parent .. "." or "") .. k .. "]]\n"
 					result = result .. table_to_toml(entry, nil)
@@ -126,26 +126,31 @@ local function deserialize(input: string)
 		local line = read_line(state)
 
 		if line == "" or string.sub(line, 1, 1) == "#" then
-			-- Ignore comments and empty lines
-		elseif string.match(line, "^%[%[(.-)%]%]$") then -- Array of tables
+			-- ignore comments and empty lines
+		elseif string.match(line, "^%[%[(.-)%]%]$") then
 			local tableName = string.match(line, "^%[%[(.-)%]%]$")
 			arrayTables[tableName] = arrayTables[tableName] or {}
+
 			local newEntry = {}
 			table.insert(arrayTables[tableName], newEntry)
+
 			result[tableName] = arrayTables[tableName]
 			currentTable = newEntry
 		elseif string.match(line, "^%[(.-)%]$") then
 			local tablePath = string.match(line, "^%[(.-)%]$")
 			local parent = result
+
 			for section in string.gmatch(tablePath, "([^.]+)") do
 				if not parent[section] then parent[section] = {} end
 				parent = parent[section]
 			end
+
 			currentTable = parent
 		elseif string.match(line, "^(.-)%s*=%s*(.-)$") then
 			local key, value = string.match(line, "^(.-)%s*=%s*(.-)$")
 			key = string.match(key, "^%s*(.-)%s*$")
 			value = string.match(value, "^%s*(.-)%s*$")
+
 			if string.match(value, '^"(.*)"$') or string.match(value, "^'(.*)'$") then
 				value = string.sub(value, 2, -2)
 				value = string.gsub(value, '\\\\', '\\')
@@ -164,6 +169,7 @@ local function deserialize(input: string)
 			elseif value == "nan" then
 				value = 0/0
 			end
+
 			currentTable[key] = value
 		end
 	end

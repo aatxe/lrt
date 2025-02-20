@@ -22,9 +22,39 @@ local function write_string(state: SerializerState, str: string)
 	state.cursor += string.len(str)
 end
 
+local function table_to_toml(tbl, parent)
+	local result = ""
+	for k, v in pairs(tbl) do
+		local key = parent and (parent .. "." .. k) or k
+		if typeof(v) == "table" then
+			if #v > 0 then  -- Array of tables
+				for _, entry in ipairs(v) do
+					result = result .. "\n[[" .. key .. "]]\n" .. table_to_toml(entry, nil)
+				end
+			else
+				result = result .. "\n[" .. key .. "]\n" .. table_to_toml(v, key)
+			end
+		else
+			result = result .. key .. " = " .. tostring(v) .. "\n"
+		end
+	end
+	return result
+end
+
 local function serialize_value(value)
 	if typeof(value) == "string" then
+		value = string.gsub(value, '\\', '\\\\')
+		value = string.gsub(value, '\n', '\\n')
+		value = string.gsub(value, '\t', '\\t')
 		return "\"" .. value .. "\""
+	elseif value == math.huge then
+		return math.huge
+	elseif value == -math.huge then
+		return -math.huge
+	elseif value ~= value then
+		return "nan"
+	elseif typeof(value) == "table" then
+		return table_to_toml(value, nil)
 	else
 		return tostring(value)
 	end
@@ -96,6 +126,11 @@ local function deserialize(input: string)
 
 		if line == "" or string.sub(line, 1, 1) == "#" then
 			-- ignore comments and empty lines
+		elseif string.match(line, "^%[(.-)%.(.-)%]$") then
+			local parentTable, childTable = string.match(line, "^%[(.-)%.(.-)%]$")
+			result[parentTable] = result[parentTable] or {}
+			result[parentTable][childTable] = result[parentTable][childTable] or {}
+			currentTable = result[parentTable][childTable]
 		elseif string.match(line, "^%[%[(.-)%]%]$") then
 			local tableName = string.match(line, "^%[%[(.-)%]%]$")
 			arrayTables[tableName] = arrayTables[tableName] or {}
@@ -116,12 +151,21 @@ local function deserialize(input: string)
 
 			if string.match(value, '^"(.*)"$') or string.match(value, "^'(.*)'$") then
 				value = string.sub(value, 2, -2)
+				value = string.gsub(value, '\\\\', '\\')
+				value = string.gsub(value, '\\n', '\n')
+				value = string.gsub(value, '\\t', '\t')
 			elseif tonumber(value) then
 				value = tonumber(value)
 			elseif value == "true" then
 				value = true
 			elseif value == "false" then
 				value = false
+			elseif value == "inf" or value == "+inf" then
+				value = math.huge
+			elseif value == "-inf" then
+				value = -math.huge
+			elseif value == "nan" then
+				value = 0/0
 			end
 
 			currentTable[key] = value

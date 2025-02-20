@@ -1,28 +1,10 @@
 local toml = require("@std/toml")
 
-local serialized = toml.serialize({
-	["hello"] = "world",
-	["world"] = {
-		["v1"] = "hi",
-		["v2"] = 8080,
-		["v3"] = true,
-	},
-	["users"] = {
-		[1] = {
-			["name"] = "Alice",
-			["age"] = 25,
-		},
-		[2] = {
-			["name"] = "Bob",
-			["age"] = 30,
-		}
-	},
-})
-
-print(serialized)
-
 local deserialized = toml.deserialize([=[
 hello = "world"
+infinity = inf
+nan_value = nan
+escaped_string = "This is a string with a newline\ncharacter"
 
 [world]
 v1 = "hi"
@@ -36,6 +18,13 @@ age = 25
 [[users]]
 name = "Bob"
 age = 30
+
+[people.Tom]
+age = 33
 ]=])
 
-print(deserialized)
+local serialized = toml.serialize(deserialized)
+
+print("serialized", serialized)
+
+print("deserialized", deserialized)

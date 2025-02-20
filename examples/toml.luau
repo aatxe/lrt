@@ -1,12 +1,41 @@
 local toml = require("@std/toml")
 
-local serialize = toml.serialize({
-    ["hello"] = "world",
+local serialized = toml.serialize({
+	["hello"] = "world",
 	["world"] = {
-		["v1"] = "hello",
+		["v1"] = "hi",
 		["v2"] = 8080,
 		["v3"] = true,
 	},
+	["users"] = {
+		[1] = {
+			["name"] = "Alice",
+			["age"] = 25,
+		},
+		[2] = {
+			["name"] = "Bob",
+			["age"] = 30,
+		}
+	},
 })
 
-print(serialize)
+print(serialized)
+
+local deserialized = toml.deserialize([=[
+hello = "world"
+
+[world]
+v1 = "hi"
+v2 = 8080
+v3 = true
+
+[[users]]
+name = "Alice"
+age = 25
+
+[[users]]
+name = "Bob"
+age = 30
+]=])
+
+print(deserialized)

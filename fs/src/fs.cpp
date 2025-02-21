@@ -332,22 +332,28 @@ int type(lua_State* L)
     {
         lua_pushstring(L, UV_TYPENAME_CHAR);
     }
-    else if (S_ISBLK(req.statbuf.st_mode))
-    {
-        lua_pushstring(L, UV_TYPENAME_BLOCK);
-    }
-    else if (S_ISFIFO(req.statbuf.st_mode))
-    {
-        lua_pushstring(L, UV_TYPENAME_FIFO);
-    }
     else if (S_ISLNK(req.statbuf.st_mode))
     {
         lua_pushstring(L, UV_TYPENAME_LINK);
     }
+#ifdef S_ISBLK
+    else if (S_ISBLK(req.statbuf.st_mode))
+    {
+        lua_pushstring(L, UV_TYPENAME_BLOCK);
+    }
+#endif
+#ifdef S_ISFIFO
+    else if (S_ISFIFO(req.statbuf.st_mode))
+    {
+        lua_pushstring(L, UV_TYPENAME_FIFO);
+    }
+#endif
+#ifdef S_ISSOCK
     else if (S_ISSOCK(req.statbuf.st_mode))
     {
         lua_pushstring(L, UV_TYPENAME_SOCKET);
     }
+#endif
     else
     {
         lua_pushstring(L, UV_TYPENAME_UNKNOWN);

@@ -22,6 +22,28 @@
 #include <string>
 #include <stdlib.h>
 
+
+#if !defined(S_ISREG) && defined(S_IFMT) && defined(S_IFREG)
+#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
+#endif
+
+#if !defined(S_ISDIR) && defined(S_IFMT) && defined(S_IFDIR)
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+#endif
+
+#if !defined(S_ISCHR) && defined(S_IFMT) && defined(S_IFCHR)
+#define S_ISCHR(m) (((m) & S_IFMT) == S_IFCHR)
+#endif
+
+#if !defined(S_ISLNK) && defined(S_IFMT) && defined(S_IFLNK)
+#define S_ISLNK(m) (((m) & S_IFMT) == S_IFLNK)
+#endif
+
+#if !defined(S_ISFIFO) && defined(S_IFMT) && defined(S_IFIFO)
+#define S_ISFIFO(m) (((m) & S_IFMT) == S_IFIFO)
+#endif
+
+
 namespace fs
 {
 
@@ -266,14 +288,16 @@ void cleanup(char* buffer, int size, const FileHandle& handle)
     uv_fs_close(uv_default_loop(), &closeReq, handle.fileDescriptor, nullptr);
 }
 
-int fs_remove(lua_State *L) {
+int fs_remove(lua_State* L)
+{
     std::filesystem::remove(luaL_checkstring(L, 1));
-    
+
     return 0;
 }
 
-int fs_mkdir(lua_State *L) {
-    const char *path = luaL_checkstring(L, 1);
+int fs_mkdir(lua_State* L)
+{
+    const char* path = luaL_checkstring(L, 1);
     int mode = luaL_optinteger(L, 2, 0777);
 
     uv_fs_t req;
@@ -282,7 +306,7 @@ int fs_mkdir(lua_State *L) {
     if (err)
         luaL_errorL(L, "%s", uv_strerror(err));
 
-    return 0;   
+    return 0;
 }
 
 int type(lua_State* L)

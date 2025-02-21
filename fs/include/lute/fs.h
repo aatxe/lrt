@@ -34,12 +34,22 @@ int writestringtofile(lua_State* L);
 /* Reads a file without blocking */
 int readasync(lua_State* L);
 
+/* Gets the type of a file entry */
+int type(lua_State* L);
+
+/* Lists the contents of a directory */
+int listdir(lua_State* L);
+
 static const luaL_Reg lib[] = {
     /* Manual control apis - you are responsible for calling close / open*/
     {"open", open},
     {"read", read},
     {"write", write},
     {"close", close},
+
+    {"type", type},
+
+    {"listdir", listdir},
 
     {"readfiletostring", readfiletostring},
     {"writestringtofile", writestringtofile},

@@ -4,11 +4,11 @@
 #include "lualib.h"
 #include "uv.h"
 
-#include "lute/ref.h"
 #include "lute/runtime.h"
 
 #include <cstdio>
 #include <cstring>
+#include <fcntl.h>
 #include <map>
 #include <memory>
 #include <optional>
@@ -23,6 +23,26 @@
 
 namespace fs
 {
+
+const char* UV_TYPENAME_UNKNOWN = "unknown"; // UV_DIRENT_UNKNOWN
+const char* UV_TYPENAME_FILE = "file";       // UV_DIRENT_FILE
+const char* UV_TYPENAME_DIR = "dir";         // UV_DIRENT_DIR
+const char* UV_TYPENAME_LINK = "link";       // UV_DIRENT_LINK
+const char* UV_TYPENAME_FIFO = "fifo";       // UV_DIRENT_FIFO
+const char* UV_TYPENAME_SOCKET = "socket";   // UV_DIRENT_SOCKET
+const char* UV_TYPENAME_CHAR = "char";       // UV_DIRENT_CHAR
+const char* UV_TYPENAME_BLOCK = "block";     // UV_DIRENT_BLOCK
+
+const char* UV_DIRENT_TYPES[] = {
+    UV_TYPENAME_UNKNOWN,
+    UV_TYPENAME_FILE,
+    UV_TYPENAME_DIR,
+    UV_TYPENAME_LINK,
+    UV_TYPENAME_FIFO,
+    UV_TYPENAME_SOCKET,
+    UV_TYPENAME_CHAR,
+    UV_TYPENAME_BLOCK,
+};
 
 std::optional<int> setFlags(const char* c, int* openFlags)
 {
@@ -243,6 +263,108 @@ void cleanup(char* buffer, int size, const FileHandle& handle)
     memset(buffer, 0, size);
     uv_fs_t closeReq;
     uv_fs_close(uv_default_loop(), &closeReq, handle.fileDescriptor, nullptr);
+}
+
+int type(lua_State* L)
+{
+    const char* path = luaL_checkstring(L, 1);
+
+    uv_fs_t req;
+
+    int err = uv_fs_stat(uv_default_loop(), &req, path, nullptr);
+
+    if (err)
+        luaL_errorL(L, "%s", uv_strerror(err));
+
+    if (S_ISDIR(req.statbuf.st_mode))
+    {
+        lua_pushstring(L, UV_TYPENAME_DIR);
+    }
+    else if (S_ISREG(req.statbuf.st_mode))
+    {
+        lua_pushstring(L, UV_TYPENAME_FILE);
+    }
+    else if (S_ISCHR(req.statbuf.st_mode))
+    {
+        lua_pushstring(L, UV_TYPENAME_CHAR);
+    }
+    else if (S_ISBLK(req.statbuf.st_mode))
+    {
+        lua_pushstring(L, UV_TYPENAME_BLOCK);
+    }
+    else if (S_ISFIFO(req.statbuf.st_mode))
+    {
+        lua_pushstring(L, UV_TYPENAME_FIFO);
+    }
+    else if (S_ISLNK(req.statbuf.st_mode))
+    {
+        lua_pushstring(L, UV_TYPENAME_LINK);
+    }
+    else if (S_ISSOCK(req.statbuf.st_mode))
+    {
+        lua_pushstring(L, UV_TYPENAME_SOCKET);
+    }
+    else
+    {
+        lua_pushstring(L, UV_TYPENAME_UNKNOWN);
+    }
+
+
+    uv_fs_req_cleanup(&req);
+
+    return 1;
+}
+
+int listdir(lua_State* L)
+{
+    const char* path = luaL_checkstring(L, 1);
+
+    auto* req = new uv_fs_t();
+    req->data = new ResumeToken(getResumeToken(L));
+
+    int err = uv_fs_scandir(
+        uv_default_loop(),
+        req,
+        path,
+        0,
+        [](uv_fs_t* req)
+        {
+            auto* request_state = static_cast<ResumeToken*>(req->data);
+
+            request_state->get()->complete(
+                [req](lua_State* L)
+                {
+                    lua_createtable(L, 1, 0);
+
+                    uv_dirent_t dir;
+                    int i = 0;
+                    while (uv_fs_scandir_next(req, &dir) != UV_EOF)
+                    {
+                        lua_pushinteger(L, ++i);
+
+                        lua_createtable(L, 0, 2);
+
+                        lua_pushstring(L, dir.name);
+                        lua_setfield(L, -2, "name");
+
+                        lua_pushstring(L, UV_DIRENT_TYPES[dir.type]);
+                        lua_setfield(L, -2, "type");
+
+                        lua_settable(L, -3);
+                    }
+
+                    delete req;
+
+                    return 1;
+                }
+            );
+        }
+    );
+
+    if (err)
+        luaL_errorL(L, "%s", uv_strerror(err));
+
+    return lua_yield(L, 0);
 }
 
 int readfiletostring(lua_State* L)

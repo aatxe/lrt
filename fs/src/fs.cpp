@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstring>
 #include <fcntl.h>
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <optional>
@@ -263,6 +264,25 @@ void cleanup(char* buffer, int size, const FileHandle& handle)
     memset(buffer, 0, size);
     uv_fs_t closeReq;
     uv_fs_close(uv_default_loop(), &closeReq, handle.fileDescriptor, nullptr);
+}
+
+int fs_remove(lua_State *L) {
+    std::filesystem::remove(luaL_checkstring(L, 1));
+    
+    return 0;
+}
+
+int fs_mkdir(lua_State *L) {
+    const char *path = luaL_checkstring(L, 1);
+    int mode = luaL_optinteger(L, 2, 0777);
+
+    uv_fs_t req;
+    int err = uv_fs_mkdir(uv_default_loop(), &req, path, mode, nullptr);
+
+    if (err)
+        luaL_errorL(L, "%s", uv_strerror(err));
+
+    return 0;   
 }
 
 int type(lua_State* L)

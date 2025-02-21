@@ -34,6 +34,15 @@ int writestringtofile(lua_State* L);
 /* Reads a file without blocking */
 int readasync(lua_State* L);
 
+/* Removes a file */
+int fs_remove(lua_State* L);
+
+/* Creates a folder */
+int fs_mkdir(lua_State* L);
+
+/* Removes a directory */
+int fs_rmdir(lua_State* L);
+
 /* Gets the type of a file entry */
 int type(lua_State* L);
 
@@ -47,8 +56,11 @@ static const luaL_Reg lib[] = {
     {"write", write},
     {"close", close},
 
+    {"remove", fs_remove},
+
     {"type", type},
 
+    {"mkdir", fs_mkdir},
     {"listdir", listdir},
 
     {"readfiletostring", readfiletostring},

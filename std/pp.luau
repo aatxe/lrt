@@ -1,6 +1,6 @@
-local isPrimitiveType = {string = true, number = true, boolean = true}
+local isPrimitiveType = { string = true, number = true, boolean = true }
 
-local function isPrimitiveArray(array)
+local function isPrimitiveArray(array: {[unknown]: unknown})
     local max, n = 0, 0
 
     for key, value in array do
@@ -15,7 +15,7 @@ local function isPrimitiveArray(array)
     return n == max
 end
 
-local function formatValue(value)
+local function formatValue(value: unknown)
     if typeof(value) ~= "string" then
         return tostring(value)
     end
@@ -23,7 +23,7 @@ local function formatValue(value)
     return string.format("%q", value)
 end
 
-local function formatKey(key, seq)
+local function formatKey(key: unknown, seq: boolean)
     if seq then return "" end
 
     if typeof(key) ~= "string" then
@@ -38,7 +38,7 @@ local function formatKey(key, seq)
     return `[{string.format("%q", key)}] = `
 end
 
-local typeSortOrder = {
+local typeSortOrder: {[string]: number} = {
     ["boolean"]  =  1,
     ["number"]   =  2,
     ["string"]   =  3,
@@ -51,9 +51,8 @@ local typeSortOrder = {
     ["nil"]      = 10,
 }
 
-local function traverseTable(dataTable, seen, indent)
+local function traverseTable(dataTable: {[unknown]: unknown}, seen: {[unknown]: boolean}, indent: number)
     local output = ""
-
     local indentStr = string.rep("  ", indent)
 
     local keys = {}
@@ -64,7 +63,7 @@ local function traverseTable(dataTable, seen, indent)
         end
     end
 
-    table.sort(keys, function(a,b)
+    table.sort(keys, function(a: string, b: string): boolean
         local typeofTableA, typeofTableB = typeof(dataTable[a]), typeof(dataTable[b])
 
         if typeofTableA ~= typeofTableB then
@@ -123,23 +122,26 @@ local function traverseTable(dataTable, seen, indent)
             continue
         end
 
-        if isPrimitiveArray(value) then -- collapse primitive arrays
+        -- FIXME(luau): `{[unknown]: unknown} should be treated identically to `table`
+        if isPrimitiveArray(value :: {[unknown]: unknown}) then -- collapse primitive arrays
+            local valueAsArray = value :: {unknown}
+
             output = string.format("%s%s%s{", output, indentStr, formatKey(key, inSequence))
 
-            for index = 1, #value do
-                output = output .. formatValue(value[index])
-                if index < #value then
-                    output = output .. ", "
+            for index = 1, #valueAsArray do
+                output ..= formatValue(valueAsArray[index])
+                if index < #valueAsArray then
+                    output ..= ", "
                 end
             end
 
-            output = output .. "},\n"
+            output ..= "},\n"
             continue
         end
 
         output = string.format("%s%s%s{\n%s%s},\n",
                                 output, indentStr, formatKey(key, inSequence),
-                                traverseTable(value, seen, indent + 1), indentStr)
+                                traverseTable(value :: any, seen, indent + 1), indentStr)
 
         seen[value] = nil
     end
@@ -147,11 +149,12 @@ local function traverseTable(dataTable, seen, indent)
     return output
 end
 
-return function(data)
+return function(data: unknown)
     -- if it's not a primitive, we'll pretty print it as a value
     if typeof(data) ~= "table" then
         return formatValue(data)
     end
 
-    return "{\n" .. traverseTable(data, {[data]=true}, 1) .. "}"
+    -- FIXME(luau): `{[unknown]: unknown} should be treated identically to `table`
+    return "{\n" .. traverseTable(data :: {[unknown]: unknown}, {[data :: unknown] = true}, 1) .. "}"
 end

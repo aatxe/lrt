@@ -17,7 +17,7 @@ local duration = {}
 duration.__index = duration
 
 type durationinterface = typeof(duration)
-export type duration = typeof(setmetatable({} :: durationdata, {} :: durationinterface))
+export type duration = setmetatable<durationdata, durationinterface>
 
 function duration.create(seconds: number, nanoseconds: number): duration
     local self = {
@@ -164,6 +164,6 @@ function duration.__tostring(self: duration): string
     return string.format("%d.%09d", self.seconds, self.nanoseconds)
 end
 
-return {
+return table.freeze({
     duration = duration,
-}
+})

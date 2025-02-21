@@ -22,5 +22,7 @@ int luteopen_vm(lua_State* L)
         lua_setfield(L, -2, name);
     }
 
+    lua_setreadonly(L, -1, 1);
+
     return 1;
 }

@@ -761,20 +761,22 @@ struct AstSerialize : public Luau::AstVisitor
         lua_setfield(L, -2, "index");
     }
 
-    void serialize(Luau::AstExprFunction* node)
+    void serializeFunctionBody(Luau::AstExprFunction* node)
     {
         lua_rawcheckstack(L, 3);
-        lua_createtable(L, 0, preambleSize);
-
-        serializeNodePreamble(node, "function");
-
-        // TODO: attributes
+        lua_createtable(L, 0, 7);
 
         if (node->self)
             serialize(node->self);
         else
             lua_pushnil(L);
         lua_setfield(L, -2, "self");
+
+        if (node->argLocation)
+        {
+            serializeToken(node->argLocation->begin, "(");
+            lua_setfield(L, -2, "openParens");
+        }
 
         serializeLocals(node->args, node->argLocation ? 1 : 0);
         if (node->argLocation)
@@ -787,9 +789,34 @@ struct AstSerialize : public Luau::AstVisitor
             serialize(node->varargLocation);
         else
             lua_pushnil(L);
-        lua_setfield(L, -2, "vargarg");
+        lua_setfield(L, -2, "vararg");
+
+        if (node->argLocation)
+        {
+            serializeToken(Luau::Position{node->argLocation->end.line, node->argLocation->end.column - 1}, ")");
+            lua_setfield(L, -2, "closeParens");
+        }
 
         node->body->visit(this);
+        lua_setfield(L, -2, "body");
+
+        serializeToken(node->body->location.end, "end");
+        lua_setfield(L, -2, "end");
+    }
+
+    void serialize(Luau::AstExprFunction* node)
+    {
+        lua_rawcheckstack(L, 3);
+        lua_createtable(L, 0, preambleSize);
+
+        serializeNodePreamble(node, "function");
+
+        // TODO: attributes
+
+        serializeToken(node->location.begin, "function");
+        lua_setfield(L, -2, "function");
+
+        serializeFunctionBody(node);
         lua_setfield(L, -2, "body");
     }
 

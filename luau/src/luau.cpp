@@ -648,9 +648,7 @@ struct AstSerialize : public Luau::AstVisitor
 
     void serialize(Luau::AstExprVarargs* node)
     {
-        lua_rawcheckstack(L, 2);
-        lua_createtable(L, 0, preambleSize);
-
+        serializeToken(node->location.begin, "...", preambleSize);
         serializeNodePreamble(node, "vararg");
     }
 

@@ -89,6 +89,22 @@ export type AstExprIndexExpr = {
 	index: AstExpr,
 }
 
+export type AstFunctionBody = {
+	-- TODO: generics
+	openParens: Token<"(">,
+	-- TODO: parameters
+	closeParens: Token<")">,
+	-- TODO: return type
+	body: AstStatBlock,
+	["end"]: Token<"end">,
+}
+
+export type AstExprAnonymousFunction = {
+	tag: "function",
+	["function"]: Token<"function">,
+	body: AstFunctionBody,
+}
+
 export type AstExprTableItem = | { kind: "list", value: AstExpr, separator: Token<"," | ";">? } | {
 	kind: "record",
 	key: Token<string>,
@@ -129,6 +145,7 @@ export type AstExpr =
 	| AstExprCall
 	| AstExprIndexName
 	| AstExprIndexExpr
+	| AstExprAnonymousFunction
 	| AstExprTable
 	| AstExprBinary
 

@@ -9,9 +9,12 @@ local function identityTransform(ctx: codemod.Context)
 end
 
 codemod.apply("examples/a.luau", identityTransform)
+codemod.apply("examples/async_read.luau", identityTransform)
 codemod.apply("examples/b.luau", identityTransform)
+codemod.apply("examples/badisnan.luau", identityTransform)
 codemod.apply("examples/json.luau", identityTransform)
 codemod.apply("examples/main.luau", identityTransform)
+codemod.apply("examples/net_example.luau", identityTransform)
 codemod.apply("examples/parsing.luau", identityTransform)
 codemod.apply("examples/time_example.luau", identityTransform)
 codemod.apply("examples/writeFile.luau", identityTransform)

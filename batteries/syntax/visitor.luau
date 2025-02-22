@@ -11,6 +11,7 @@ type Visitor = {
 	visitLocalReference: (T.AstExprLocal) -> boolean,
 	visitGlobal: (T.AstExprGlobal) -> boolean,
 	visitCall: (T.AstExprCall) -> boolean,
+	visitUnary: (T.AstExprUnary) -> boolean,
 	visitBinary: (T.AstExprBinary) -> boolean,
 	visitAnonymousFunction: (T.AstExprAnonymousFunction) -> boolean,
 	visitTableItem: (T.AstExprTableItem) -> boolean,
@@ -40,6 +41,7 @@ local defaultVisitor: Visitor = {
 	visitLocalReference = alwaysVisit :: any,
 	visitGlobal = alwaysVisit :: any,
 	visitCall = alwaysVisit :: any,
+	visitUnary = alwaysVisit :: any,
 	visitBinary = alwaysVisit :: any,
 	visitAnonymousFunction = alwaysVisit :: any,
 	visitTableItem = alwaysVisit :: any,
@@ -171,6 +173,13 @@ local function visitCall(node: T.AstExprCall, visitor: Visitor)
 	end
 end
 
+local function visitUnary(node: T.AstExprUnary, visitor: Visitor)
+	if visitor.visitUnary(node) then
+		visitToken(node.operator, visitor)
+		visitExpression(node.operand, visitor)
+	end
+end
+
 local function visitBinary(node: T.AstExprBinary, visitor: Visitor)
 	if visitor.visitBinary(node) then
 		visitExpression(node.lhsoperand, visitor)
@@ -271,6 +280,8 @@ function visitExpression(expression: T.AstExpr, visitor: Visitor)
 		visitGlobal(expression, visitor)
 	elseif expression.tag == "call" then
 		visitCall(expression, visitor)
+	elseif expression.tag == "unary" then
+		visitUnary(expression, visitor)
 	elseif expression.tag == "binary" then
 		visitBinary(expression, visitor)
 	elseif expression.tag == "function" then

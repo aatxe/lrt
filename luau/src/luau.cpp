@@ -871,18 +871,10 @@ struct AstSerialize : public Luau::AstVisitor
 
         serializeNodePreamble(node, "unary");
 
-        switch (node->op)
-        {
-        case Luau::AstExprUnary::Op::Not:
-            lua_pushstring(L, "not");
-            break;
-        case Luau::AstExprUnary::Op::Minus:
-            lua_pushstring(L, "-");
-            break;
-        case Luau::AstExprUnary::Op::Len:
-            lua_pushstring(L, "#");
-            break;
-        }
+        if (const auto cstNode = lookupCstNode<Luau::CstExprOp>(node))
+            serializeToken(cstNode->opPosition, toString(node->op).data());
+        else
+            lua_pushstring(L, Luau::toString(node->op).data());
         lua_setfield(L, -2, "operator");
 
         node->expr->visit(this);

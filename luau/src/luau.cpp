@@ -755,6 +755,8 @@ struct AstSerialize : public Luau::AstVisitor
 
     void serialize(Luau::AstExprIndexExpr* node)
     {
+        const auto* cstNode = lookupCstNode<Luau::CstExprIndexExpr>(node);
+
         lua_rawcheckstack(L, 2);
         lua_createtable(L, 0, preambleSize + 2);
 
@@ -763,8 +765,20 @@ struct AstSerialize : public Luau::AstVisitor
         node->expr->visit(this);
         lua_setfield(L, -2, "expr");
 
+        if (cstNode)
+        {
+            serializeToken(cstNode->openBracketPosition, "[");
+            lua_setfield(L, -2, "openBrackets");
+        }
+
         node->index->visit(this);
         lua_setfield(L, -2, "index");
+
+        if (cstNode)
+        {
+            serializeToken(cstNode->closeBracketPosition, "]");
+            lua_setfield(L, -2, "closeBrackets");
+        }
     }
 
     void serializeFunctionBody(Luau::AstExprFunction* node)

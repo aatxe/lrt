@@ -93,7 +93,9 @@ export type AstExprIndexName = {
 export type AstExprIndexExpr = {
 	tag: "index",
 	expr: AstExpr,
+	openBrackets: Token<"[">,
 	index: AstExpr,
+	closeBrackets: Token<"]">,
 }
 
 export type AstFunctionBody = {

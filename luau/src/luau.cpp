@@ -588,12 +588,18 @@ struct AstSerialize : public Luau::AstVisitor
     void serialize(Luau::AstExprGroup* node)
     {
         lua_rawcheckstack(L, 2);
-        lua_createtable(L, 0, preambleSize + 1);
+        lua_createtable(L, 0, preambleSize + 3);
 
         serializeNodePreamble(node, "group");
 
+        serializeToken(node->location.begin, "(");
+        lua_setfield(L, -2, "openParens");
+
         node->expr->visit(this);
         lua_setfield(L, -2, "expression");
+
+        serializeToken(Luau::Position{node->location.end.line, node->location.end.column - 1}, "}");
+        lua_setfield(L, -2, "closeParens");
     }
 
     void serialize(Luau::AstExprConstantNil* node)

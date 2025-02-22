@@ -43,6 +43,13 @@ export type AstLocal = {
 	name: Token<string>,
 }
 
+export type AstExprGroup = {
+	tag: "group",
+	openParens: Token<"(">,
+	expression: AstExpr,
+	closeParens: Token<")">,
+}
+
 export type AstExprConstantNil = Token<"nil"> & { tag: "nil" }
 
 export type AstExprConstantBool = Token<"true" | "false"> & { tag: "boolean", value: boolean }
@@ -136,6 +143,7 @@ export type AstExprBinary = {
 }
 
 export type AstExpr =
+	| AstExprGroup
 	| AstExprConstantNil
 	| AstExprConstantBool
 	| AstExprConstantNumber

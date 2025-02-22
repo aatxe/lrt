@@ -16,6 +16,7 @@ type Visitor = {
 	visitTableItem: (T.AstExprTableItem) -> boolean,
 	visitTable: (T.AstExprTable) -> boolean,
 	visitIndexName: (T.AstExprIndexName) -> boolean,
+	visitIndexExpr: (T.AstExprIndexExpr) -> boolean,
 	visitGroup: (T.AstExprGroup) -> boolean,
 
 	visitToken: (T.Token) -> boolean,
@@ -44,6 +45,7 @@ local defaultVisitor: Visitor = {
 	visitTableItem = alwaysVisit :: any,
 	visitTable = alwaysVisit :: any,
 	visitIndexName = alwaysVisit :: any,
+	visitIndexExpr = alwaysVisit :: any,
 	visitGroup = alwaysVisit :: any,
 
 	visitToken = alwaysVisit :: any,
@@ -237,6 +239,15 @@ local function visitIndexName(node: T.AstExprIndexName, visitor: Visitor)
 	end
 end
 
+local function visitIndexExpr(node: T.AstExprIndexExpr, visitor: Visitor)
+	if visitor.visitIndexExpr(node) then
+		visitExpression(node.expr, visitor)
+		visitToken(node.openBrackets, visitor)
+		visitExpression(node.index, visitor)
+		visitToken(node.closeBrackets, visitor)
+	end
+end
+
 local function visitGroup(node: T.AstExprGroup, visitor: Visitor)
 	if visitor.visitGroup(node) then
 		visitToken(node.openParens, visitor)
@@ -268,6 +279,8 @@ function visitExpression(expression: T.AstExpr, visitor: Visitor)
 		visitTable(expression, visitor)
 	elseif expression.tag == "indexname" then
 		visitIndexName(expression, visitor)
+	elseif expression.tag == "index" then
+		visitIndexExpr(expression, visitor)
 	elseif expression.tag == "group" then
 		visitGroup(expression, visitor)
 	else

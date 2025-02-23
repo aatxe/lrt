@@ -290,7 +290,11 @@ void cleanup(char* buffer, int size, const FileHandle& handle)
 
 int fs_remove(lua_State* L)
 {
-    std::filesystem::remove(luaL_checkstring(L, 1));
+    uv_fs_t unlink_req;
+    int err = uv_fs_unlink(uv_default_loop(), &unlink_req, luaL_checkstring(L, 1), nullptr);
+
+    if (err)
+        luaL_errorL(L, "%s", uv_strerror(err));
 
     return 0;
 }
@@ -302,6 +306,18 @@ int fs_mkdir(lua_State* L)
 
     uv_fs_t req;
     int err = uv_fs_mkdir(uv_default_loop(), &req, path, mode, nullptr);
+
+    if (err)
+        luaL_errorL(L, "%s", uv_strerror(err));
+
+    return 0;
+}
+
+int fs_rmdir(lua_State* L) {
+    const char* path = luaL_checkstring(L, 1);
+
+    uv_fs_t rmdir_req;
+    int err = uv_fs_rmdir(uv_default_loop(), &rmdir_req, path, nullptr);
 
     if (err)
         luaL_errorL(L, "%s", uv_strerror(err));

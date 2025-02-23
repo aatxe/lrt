@@ -62,6 +62,7 @@ static const luaL_Reg lib[] = {
 
     {"mkdir", fs_mkdir},
     {"listdir", listdir},
+    {"rmdir", fs_rmdir},
 
     {"readfiletostring", readfiletostring},
     {"writestringtofile", writestringtofile},

@@ -63,7 +63,8 @@ public:
         ParseOptions options = ParseOptions()
     );
 
-private:
+// FIXME(lute): temporary change, we should expose a few more methods here ultimately
+//private:
     struct Name;
     struct Binding;
 

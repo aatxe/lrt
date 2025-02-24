@@ -6,21 +6,6 @@ type SerializerState = {
 	cursor: number,
 }
 
-local function checkState(state: SerializerState, len: number)
-	local currentLength = buffer.len(state.buf)
-	if state.cursor + len >= currentLength then
-		local newBuffer = buffer.create(currentLength * 2)
-		buffer.copy(newBuffer, 0, state.buf)
-		state.buf = newBuffer
-	end
-end
-
-local function writeString(state: SerializerState, str: string)
-	checkState(state, string.len(str))
-	buffer.writestring(state.buf, state.cursor, str)
-	state.cursor += string.len(str)
-end
-
 local function serializeValue(value: string | number)
 	if typeof(value) == "string" then
 		value = string.gsub(value, '\\', '\\\\')

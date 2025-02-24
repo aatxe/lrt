@@ -1,4 +1,4 @@
-local toml = require("@std/toml")
+local toml = require("@batteries/toml")
 
 local deserialized = toml.deserialize([=[
 hello = "world"

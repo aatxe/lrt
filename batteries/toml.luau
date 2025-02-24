@@ -21,7 +21,7 @@ local function write_string(state: SerializerState, str: string)
 	state.cursor += string.len(str)
 end
 
-local function serialize_value(value)
+local function serialize_value(value: string | number)
 	if typeof(value) == "string" then
 		value = string.gsub(value, '\\', '\\\\')
 		value = string.gsub(value, '\n', '\\n')
@@ -38,7 +38,7 @@ local function serialize_value(value)
 	end
 end
 
-local function has_nested_tables(tbl)
+local function has_nested_tables(tbl: {})
 	for _, v in tbl do
 		if typeof(v) == "table" and next(v) ~= nil then
 			return true
@@ -47,20 +47,20 @@ local function has_nested_tables(tbl)
 	return false
 end
 
-local function table_to_toml(tbl, parent)
+local function table_to_toml(tbl: {}, parent: string)
 	local result = ""
-	local sub_tables = {}
+	local subTables = {}
 	local hasDirectValues = false
 
-	for k, v in pairs(tbl) do
+	for k, v in tbl do
 		if typeof(v) == "table" and next(v) ~= nil then
 			if #v > 0 then
-				for _, entry in ipairs(v) do
+				for _, entry in v do
 					result ..= "\n[[" .. (parent and parent .. "." or "") .. k .. "]]\n"
 					result = result .. table_to_toml(entry, nil)
 				end
 			else
-				sub_tables[k] = v
+				subTables[k] = v
 			end
 		else
 			hasDirectValues = true
@@ -68,7 +68,7 @@ local function table_to_toml(tbl, parent)
 		end
 	end
 
-	for k, v in pairs(sub_tables) do
+	for k, v in subTables do
 		local key = parent and (parent .. "." .. k) or k
 		
 		if has_nested_tables(v) == true then
@@ -126,8 +126,10 @@ local function deserialize(input: string)
 		local line = read_line(state)
 
 		if line == "" or string.sub(line, 1, 1) == "#" then
-			-- ignore comments and empty lines
-		elseif string.match(line, "^%[%[(.-)%]%]$") then
+			continue
+		end
+
+		if string.match(line, "^%[%[(.-)%]%]$") then
 			local tableName = string.match(line, "^%[%[(.-)%]%]$")
 			arrayTables[tableName] = arrayTables[tableName] or {}
 

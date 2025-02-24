@@ -6,7 +6,7 @@ type SerializerState = {
 	cursor: number,
 }
 
-local function check_state(state: SerializerState, len: number)
+local function checkState(state: SerializerState, len: number)
 	local cur_len = buffer.len(state.buf)
 	if state.cursor + len >= cur_len then
 		local new_buffer = buffer.create(cur_len * 2)
@@ -15,13 +15,13 @@ local function check_state(state: SerializerState, len: number)
 	end
 end
 
-local function write_string(state: SerializerState, str: string)
-	check_state(state, string.len(str))
+local function writeString(state: SerializerState, str: string)
+	checkState(state, string.len(str))
 	buffer.writestring(state.buf, state.cursor, str)
 	state.cursor += string.len(str)
 end
 
-local function serialize_value(value: string | number)
+local function serializeValue(value: string | number)
 	if typeof(value) == "string" then
 		value = string.gsub(value, '\\', '\\\\')
 		value = string.gsub(value, '\n', '\\n')
@@ -38,7 +38,7 @@ local function serialize_value(value: string | number)
 	end
 end
 
-local function has_nested_tables(tbl: {})
+local function hasNestedTables(tbl: {})
 	for _, v in tbl do
 		if typeof(v) == "table" and next(v) ~= nil then
 			return true
@@ -47,7 +47,7 @@ local function has_nested_tables(tbl: {})
 	return false
 end
 
-local function table_to_toml(tbl: {}, parent: string)
+local function tableToToml(tbl: {}, parent: string)
 	local result = ""
 	local subTables = {}
 	local hasDirectValues = false
@@ -57,30 +57,30 @@ local function table_to_toml(tbl: {}, parent: string)
 			if #v > 0 then
 				for _, entry in v do
 					result ..= "\n[[" .. (parent and parent .. "." or "") .. k .. "]]\n"
-					result = result .. table_to_toml(entry, nil)
+					result ..=  tableToToml(entry, nil)
 				end
 			else
 				subTables[k] = v
 			end
 		else
 			hasDirectValues = true
-			result = result .. k .. " = " .. serialize_value(v) .. "\n"
+			result ..= k .. " = " .. serializeValue(v) .. "\n"
 		end
 	end
 
 	for k, v in subTables do
 		local key = parent and (parent .. "." .. k) or k
 		
-		if has_nested_tables(v) == true then
-			result = result .. table_to_toml(v, key)
+		if hasNestedTables(v) == true then
+			result ..= tableToToml(v, key)
 			continue
 		end
 
 		if hasDirectValues or parent then
-			result = result .. "\n[" .. key .. "]\n"
+			result ..= "\n[" .. key .. "]\n"
 		end
 
-		result = result .. table_to_toml(v, key)
+		result ..= tableToToml(v, key)
 	end
 
 	return result
@@ -88,7 +88,7 @@ end
 
 
 local function serialize(tbl: {}): string
-	return table_to_toml(tbl, nil)
+	return tableToToml(tbl, nil)
 end
 
 -- deserialization
@@ -97,7 +97,7 @@ type DeserializerState = {
 	cursor: number,
 }
 
-local function skip_whitespace(state: DeserializerState)
+local function skipWhitespace(state: DeserializerState)
 	local pos = state.cursor
 	while pos <= string.len(state.buf) and string.match(string.sub(state.buf, pos, pos), "%s") do
 		pos += 1
@@ -105,7 +105,7 @@ local function skip_whitespace(state: DeserializerState)
 	state.cursor = pos
 end
 
-local function read_line(state: DeserializerState)
+local function readLine(state: DeserializerState)
 	local next_line = string.find(state.buf, "\n", state.cursor) or string.len(state.buf) + 1
 	local line = string.sub(state.buf, state.cursor, next_line - 1)
 	state.cursor = next_line + 1
@@ -122,8 +122,8 @@ local function deserialize(input: string)
 	local arrayTables = {}
 
 	while state.cursor <= string.len(state.buf) do
-		skip_whitespace(state)
-		local line = read_line(state)
+		skipWhitespace(state)
+		local line = readLine(state)
 
 		if line == "" or string.sub(line, 1, 1) == "#" then
 			continue

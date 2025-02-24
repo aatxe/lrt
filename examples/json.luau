@@ -1,4 +1,4 @@
-local json = require("@std/json")
+local json = require("@batteries/json")
 
 local serialize = json.serialize({
     hello = "world"

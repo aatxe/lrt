@@ -1,7 +1,7 @@
 local fs = require("@lute/fs")
 local luau = require("@lute/luau")
 
-local pp = require("@std/pp")
+local pp = require("@batteries/pp")
 
 local function select<T>(node, predicate: ({[string]: any}) -> T?): { T }
     local nodes = {}

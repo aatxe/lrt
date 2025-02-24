@@ -164,6 +164,6 @@ function duration.__tostring(self: duration): string
     return string.format("%d.%09d", self.seconds, self.nanoseconds)
 end
 
-return {
+return table.freeze({
     duration = duration,
-}
+})

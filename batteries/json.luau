@@ -79,7 +79,15 @@ local ESCAPE_MAP = {
 	[0x09] = string.byte("t"),
 }
 
-local scratch_unicode_buffer = buffer.create(4)
+local function serialize_unicode(codepoint: number)    
+    if codepoint >= 0x10000 then
+        local high = math.floor((codepoint - 0x10000) / 0x400) + 0xD800
+        local low = ((codepoint - 0x10000) % 0x400) + 0xDC00
+        return string.format("\\u%04x\\u%04x", high, low)
+    end
+
+    return string.format("\\u%04x", codepoint)
+end
 
 local function serialize_string(state: SerializerState, str: string)
 	check_state(state, #str)
@@ -90,13 +98,8 @@ local function serialize_string(state: SerializerState, str: string)
 		if ESCAPE_MAP[codepoint] then
 			write_byte(state, string.byte("\\"))
 			write_byte(state, ESCAPE_MAP[codepoint])
-		elseif codepoint < 0x0020 or codepoint > 0x10FFFF then
-			buffer.writeu32(scratch_unicode_buffer, 0, codepoint)
-			write_string(state, "\\u{")
-
-			write_string(state, string.format("%04x", codepoint))
-
-			write_byte(state, string.byte("}"))
+		elseif codepoint < 32 or codepoint > 126 then
+			write_string(state, serialize_unicode(codepoint))
 		else
 			write_string(state, utf8.char(codepoint))
 		end
@@ -211,7 +214,7 @@ type DeserializerState = {
 	cursor: number,
 }
 
-local function deserializer_error(state: DeserializerState, msg: string)
+local function deserializer_error(state: DeserializerState, msg: string): never
 	return error(`JSON error - {msg} around {state.cursor}`)
 end
 
@@ -259,17 +262,17 @@ local function deserialize_number(state: DeserializerState)
 	return num
 end
 
-local ESCAPE_REVERSE = {
-	["b"] = "\b",
-	["f"] = "\f",
-	["n"] = "\n",
-	["r"] = "\r",
-	["t"] = "\t",
-}
+local function decode_surrogate_pair(high, low): string?
+	local high_val = tonumber(high, 16)
+	local low_val = tonumber(low, 16)
 
-local PATTERN = "([^\\]?)\\([bfnrt])"
-local function unescape(before: string, code: string): string
-	return before .. assert(ESCAPE_REVERSE[code], "Invalid escape code passed to unescape")
+	if not high_val or not low_val then
+		return nil -- Invalid
+	end
+
+	-- Calculate the actual Unicode codepoint
+	local codepoint = 0x10000 + ((high_val - 0xD800) * 0x400) + (low_val - 0xDC00)
+	return utf8.char(codepoint)
 end
 
 local function deserialize_string(state: DeserializerState): string
@@ -287,7 +290,31 @@ local function deserialize_string(state: DeserializerState): string
 		if current_byte(state) == string.byte('"') then
 			state.cursor += 1
 
-			return (string.gsub(string.sub(state.src, start_pos, state.cursor - 2), PATTERN, unescape :: any))
+			local source = string.sub(state.src, start_pos, state.cursor - 2)
+
+			source = string.gsub(
+				source,
+				"\\u([dD]83[dD])\\u(d[cC]%w%w)",
+				function(high, low)
+					return decode_surrogate_pair(high, low)
+						or deserializer_error(state, "Invalid unicode surrogate pair")
+				end :: any
+			)
+			-- Handle regular Unicode escapes
+			source = string.gsub(source, "\\u(%x%x%x%x)", function(code)
+				return utf8.char(tonumber(code, 16) :: number)
+			end)
+
+			source = string.gsub(source, "\\\\", "\0")
+			source = string.gsub(source, "\\b", "\b")
+			source = string.gsub(source, "\\f", "\f")
+			source = string.gsub(source, "\\n", "\n")
+			source = string.gsub(source, "\\r", "\r")
+			source = string.gsub(source, "\\t", "\t")
+			source = string.gsub(source, '\\"', '"')
+			source = string.gsub(source, '\0', '\\')
+
+			return source
 		end
 
 		if current_byte(state) == string.byte("\\") then
@@ -313,18 +340,18 @@ local function deserialize_array(state: DeserializerState): Array
 
 	local expecting_value = false
 	while state.cursor < #state.src do
-        skip_whitespace(state)
+		skip_whitespace(state)
 
 		if current_byte(state) == string.byte(",") then
 			expecting_value = true
 			state.cursor += 1
 		end
-        
-        skip_whitespace(state)
+
+		skip_whitespace(state)
 
 		if current_byte(state) == string.byte("]") then
 			break
-		end				
+		end
 
 		table.insert(current, deserialize(state))
 
@@ -359,13 +386,13 @@ local function deserialize_object(state: DeserializerState): Object
 
 		skip_whitespace(state)
 
-		if current_byte(state) ~= string.byte("\"") then
+		if current_byte(state) ~= string.byte('"') then
 			return deserializer_error(state, "Expected a string key")
 		end
 
 		local key = deserialize_string(state)
 
-        skip_whitespace(state)
+		skip_whitespace(state)
 
 		if current_byte(state) ~= string.byte(":") then
 			return deserializer_error(state, "Expected ':' for key value pair")
@@ -381,7 +408,7 @@ local function deserialize_object(state: DeserializerState): Object
 			deserializer_error(state, "Unterminated object")
 		end
 
-        skip_whitespace(state)
+		skip_whitespace(state)
 
 		if current_byte(state) == string.byte(",") then
 			expecting_value = true
@@ -394,7 +421,7 @@ local function deserialize_object(state: DeserializerState): Object
 	if expecting_value then
 		return deserializer_error(state, "Trailing comma")
 	end
-	
+
 	if not skip_whitespace(state) or current_byte(state) ~= string.byte("}") then
 		deserializer_error(state, "Unterminated object")
 	end
@@ -427,11 +454,9 @@ deserialize = function(state: DeserializerState): Value
 		return deserialize_array(state)
 	elseif string.byte(state.src, state.cursor) == string.byte("{") then
 		return deserialize_object(state)
-	else		
-		deserializer_error(state, `Unexpected token '{string.sub(state.src, state.cursor, state.cursor)}'`)
 	end
 
-	error("idk")
+	return deserializer_error(state, `Unexpected token '{string.sub(state.src, state.cursor, state.cursor)}'`)
 end
 
 -- user-facing
@@ -456,10 +481,6 @@ json.deserialize = function(src: string)
 	}
 
 	return deserialize(state)
-end
-
-function json.dump_instrument()
-	print(`deserialize_number - {deserialize_number_count.count}s`)
 end
 
 return table.freeze(json)

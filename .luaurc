@@ -1,6 +1,7 @@
 {
     "languageMode": "strict",
     "aliases": {
-        "std": "std"
+        "batteries": "batteries",
+        "std": "std",
     }
 }

@@ -6,7 +6,7 @@
 [subrepo]
 	remote = git@github.com:luau-lang/luau.git
 	branch = master
-	commit = 29047504daa8f9bba574d86b8be8b6145ad86fd8
-	parent = 4773900a43385016f5f8e13aa62efb0d033d4d6f
+	commit = c1e2f650dbd8c1080a3c5614d02adc5b75254c4e
+	parent = 4045f931959bfa871429a6c0878599c745229b48
 	method = merge
 	cmdver = 0.4.9

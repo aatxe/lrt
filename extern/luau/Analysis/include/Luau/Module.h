@@ -21,6 +21,12 @@ LUAU_FASTFLAG(LuauIncrementalAutocompleteCommentDetection)
 namespace Luau
 {
 
+using LogLuauProc = void (*)(std::string_view);
+extern LogLuauProc logLuau;
+
+void setLogLuau(LogLuauProc ll);
+void resetLogLuauProc();
+
 struct Module;
 struct AnyTypeSummary;
 
@@ -138,6 +144,11 @@ struct Module
 
     TypePackId returnType = nullptr;
     std::unordered_map<Name, TypeFun> exportedTypeBindings;
+
+    // Arenas related to the DFG must persist after the DFG no longer exists, as
+    // Module objects maintain raw pointers to objects in these arenas.
+    DefArena defArena;
+    RefinementKeyArena keyArena;
 
     bool hasModuleScope() const;
     ScopePtr getModuleScope() const;

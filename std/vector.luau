@@ -10,7 +10,7 @@ local function withz(vec: vector, z: number): vector
     return vector.create(vec.x, vec.y, z)
 end
 
-return {
+return table.freeze({
     -- std extensions for vector
     withx = withx,
     withy = withy,
@@ -33,4 +33,4 @@ return {
 
     zero = vector.zero,
     one = vector.one,
-}
+})

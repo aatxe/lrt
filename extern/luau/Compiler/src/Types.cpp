@@ -3,15 +3,13 @@
 
 #include "Luau/BytecodeBuilder.h"
 
-LUAU_FASTFLAG(LuauCompileLibraryConstants)
-
 namespace Luau
 {
 
-static bool isGeneric(AstName name, const AstArray<AstGenericType>& generics)
+static bool isGeneric(AstName name, const AstArray<AstGenericType*>& generics)
 {
-    for (const AstGenericType& gt : generics)
-        if (gt.name == name)
+    for (const AstGenericType* gt : generics)
+        if (gt->name == name)
             return true;
 
     return false;
@@ -41,7 +39,7 @@ static LuauBytecodeType getPrimitiveType(AstName name)
 
 static LuauBytecodeType getType(
     const AstType* ty,
-    const AstArray<AstGenericType>& generics,
+    const AstArray<AstGenericType*>& generics,
     const DenseHashMap<AstName, AstStatTypeAlias*>& typeAliases,
     bool resolveAliases,
     const char* hostVectorType,
@@ -123,6 +121,10 @@ static LuauBytecodeType getType(
     {
         return LBC_TYPE_ANY;
     }
+    else if (const AstTypeGroup* group = ty->as<AstTypeGroup>())
+    {
+        return getType(group->type, generics, typeAliases, resolveAliases, hostVectorType, userdataTypes, bytecode);
+    }
 
     return LBC_TYPE_ANY;
 }
@@ -182,8 +184,6 @@ static bool isMatchingGlobalMember(
     const char* member
 )
 {
-    LUAU_ASSERT(FFlag::LuauCompileLibraryConstants);
-
     if (AstExprGlobal* object = expr->expr->as<AstExprGlobal>())
         return getGlobalState(globals, object->name) == Compile::Global::Default && object->name == library && expr->index == member;
 
@@ -481,50 +481,45 @@ struct TypeMapVisitor : AstVisitor
                 if (node->index == "X" || node->index == "Y" || node->index == "Z")
                 {
                     recordResolvedType(node, &builtinTypes.numberType);
-
-                    if (FFlag::LuauCompileLibraryConstants)
-                        return false;
+                    return false;
                 }
             }
         }
 
-        if (FFlag::LuauCompileLibraryConstants)
+        if (isMatchingGlobalMember(globals, node, "vector", "zero") || isMatchingGlobalMember(globals, node, "vector", "one"))
         {
-            if (isMatchingGlobalMember(globals, node, "vector", "zero") || isMatchingGlobalMember(globals, node, "vector", "one"))
-            {
-                recordResolvedType(node, &builtinTypes.vectorType);
-                return false;
-            }
+            recordResolvedType(node, &builtinTypes.vectorType);
+            return false;
+        }
 
-            if (libraryMemberTypeCb)
+        if (libraryMemberTypeCb)
+        {
+            if (AstExprGlobal* object = node->expr->as<AstExprGlobal>())
             {
-                if (AstExprGlobal* object = node->expr->as<AstExprGlobal>())
+                if (LuauBytecodeType ty = LuauBytecodeType(libraryMemberTypeCb(object->name.value, node->index.value)); ty != LBC_TYPE_ANY)
                 {
-                    if (LuauBytecodeType ty = LuauBytecodeType(libraryMemberTypeCb(object->name.value, node->index.value)); ty != LBC_TYPE_ANY)
+                    // TODO: 'resolvedExprs' is more limited than 'exprTypes' which limits full inference of more complex types that a user
+                    // callback can return
+                    switch (ty)
                     {
-                        // TODO: 'resolvedExprs' is more limited than 'exprTypes' which limits full inference of more complex types that a user
-                        // callback can return
-                        switch (ty)
-                        {
-                        case LBC_TYPE_BOOLEAN:
-                            resolvedExprs[node] = &builtinTypes.booleanType;
-                            break;
-                        case LBC_TYPE_NUMBER:
-                            resolvedExprs[node] = &builtinTypes.numberType;
-                            break;
-                        case LBC_TYPE_STRING:
-                            resolvedExprs[node] = &builtinTypes.stringType;
-                            break;
-                        case LBC_TYPE_VECTOR:
-                            resolvedExprs[node] = &builtinTypes.vectorType;
-                            break;
-                        default:
-                            break;
-                        }
-
-                        exprTypes[node] = ty;
-                        return false;
+                    case LBC_TYPE_BOOLEAN:
+                        resolvedExprs[node] = &builtinTypes.booleanType;
+                        break;
+                    case LBC_TYPE_NUMBER:
+                        resolvedExprs[node] = &builtinTypes.numberType;
+                        break;
+                    case LBC_TYPE_STRING:
+                        resolvedExprs[node] = &builtinTypes.stringType;
+                        break;
+                    case LBC_TYPE_VECTOR:
+                        resolvedExprs[node] = &builtinTypes.vectorType;
+                        break;
+                    default:
+                        break;
                     }
+
+                    exprTypes[node] = ty;
+                    return false;
                 }
             }
         }

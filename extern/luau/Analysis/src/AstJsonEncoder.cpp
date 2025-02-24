@@ -1161,6 +1161,19 @@ struct AstJsonEncoder : public AstVisitor
         );
     }
 
+    bool visit(class AstTypeGroup* node) override
+    {
+        writeNode(
+            node,
+            "AstTypeGroup",
+            [&]()
+            {
+                write("inner", node->type);
+            }
+        );
+        return false;
+    }
+
     bool visit(class AstTypeSingletonBool* node) override
     {
         writeNode(

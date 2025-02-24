@@ -4304,4 +4304,46 @@ foo(@1)
     CHECK_EQ(EXPECTED_INSERT, *ac.entryMap[kGeneratedAnonymousFunctionEntryName].insertText);
 }
 
+TEST_CASE_FIXTURE(ACFixture, "autocomplete_at_end_of_stmt_should_continue_as_part_of_stmt")
+{
+    check(R"(
+local data = { x = 1 }
+local var = data.@1
+    )");
+    auto ac = autocomplete('1');
+    CHECK(!ac.entryMap.empty());
+    CHECK(ac.entryMap.count("x"));
+    CHECK_EQ(ac.context, AutocompleteContext::Property);
+}
+
+TEST_CASE_FIXTURE(ACFixture, "autocomplete_after_semicolon_should_complete_a_new_statement")
+{
+    check(R"(
+local data = { x = 1 }
+local var = data;@1
+    )");
+    auto ac = autocomplete('1');
+    CHECK(!ac.entryMap.empty());
+    CHECK(ac.entryMap.count("table"));
+    CHECK(ac.entryMap.count("math"));
+    CHECK_EQ(ac.context, AutocompleteContext::Statement);
+}
+
+TEST_CASE_FIXTURE(ACBuiltinsFixture, "require_tracing")
+{
+    fileResolver.source["Module/A"] = R"(
+return { x = 0 }
+    )";
+
+    fileResolver.source["Module/B"] = R"(
+local result = require(script.Parent.A)
+local x = 1 + result.
+    )";
+
+    auto ac = autocomplete("Module/B", Position{2, 21});
+
+    CHECK(ac.entryMap.size() == 1);
+    CHECK(ac.entryMap.count("x"));
+}
+
 TEST_SUITE_END();

@@ -118,6 +118,8 @@ struct ConstraintSolver
     // A mapping from free types to the number of unresolved constraints that mention them.
     DenseHashMap<TypeId, size_t> unresolvedConstraints{{}};
 
+    std::unordered_map<NotNull<const Constraint>, DenseHashSet<TypeId>> maybeMutatedFreeTypes;
+
     // Irreducible/uninhabited type functions or type pack functions.
     DenseHashSet<const void*> uninhabitedTypeFunctions{{}};
 
@@ -166,7 +168,7 @@ struct ConstraintSolver
      **/
     void finalizeTypeFunctions();
 
-    bool isDone();
+    bool isDone() const;
 
 private:
     /**
@@ -201,6 +203,7 @@ public:
     bool tryDispatch(const NameConstraint& c, NotNull<const Constraint> constraint);
     bool tryDispatch(const TypeAliasExpansionConstraint& c, NotNull<const Constraint> constraint);
     bool tryDispatch(const FunctionCallConstraint& c, NotNull<const Constraint> constraint);
+    bool tryDispatch(const TableCheckConstraint& c, NotNull<const Constraint> constraint);
     bool tryDispatch(const FunctionCheckConstraint& c, NotNull<const Constraint> constraint);
     bool tryDispatch(const PrimitiveTypeConstraint& c, NotNull<const Constraint> constraint);
     bool tryDispatch(const HasPropConstraint& c, NotNull<const Constraint> constraint);
@@ -298,10 +301,10 @@ public:
     // FIXME: This use of a boolean for the return result is an appalling
     // interface.
     bool blockOnPendingTypes(TypeId target, NotNull<const Constraint> constraint);
-    bool blockOnPendingTypes(TypePackId target, NotNull<const Constraint> constraint);
+    bool blockOnPendingTypes(TypePackId targetPack, NotNull<const Constraint> constraint);
 
     void unblock(NotNull<const Constraint> progressed);
-    void unblock(TypeId progressed, Location location);
+    void unblock(TypeId ty, Location location);
     void unblock(TypePackId progressed, Location location);
     void unblock(const std::vector<TypeId>& types, Location location);
     void unblock(const std::vector<TypePackId>& packs, Location location);
@@ -336,7 +339,7 @@ public:
      * @param location the location where the require is taking place; used for
      * error locations.
      **/
-    TypeId resolveModule(const ModuleInfo& module, const Location& location);
+    TypeId resolveModule(const ModuleInfo& info, const Location& location);
 
     void reportError(TypeErrorData&& data, const Location& location);
     void reportError(TypeError e);
@@ -421,10 +424,7 @@ public:
 
     ToStringOptions opts;
 
-    void fillInDiscriminantTypes(
-        NotNull<const Constraint> constraint,
-        const std::vector<std::optional<TypeId>>& discriminantTypes
-    );
+    void fillInDiscriminantTypes(NotNull<const Constraint> constraint, const std::vector<std::optional<TypeId>>& discriminantTypes);
 };
 
 void dump(NotNull<Scope> rootScope, struct ToStringOptions& opts);

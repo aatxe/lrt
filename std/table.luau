@@ -33,7 +33,7 @@ local function fold<K, V, A>(table: {[K]: V}, f: (A, V) -> A, initial: A): A
     return acc
 end
 
-return {
+return table.freeze({
     -- std extension for table
     map = map,
     filter = filter,
@@ -54,4 +54,4 @@ return {
     remove = table.remove,
     sort = table.sort,
     unpack = table.unpack,
-}
+})

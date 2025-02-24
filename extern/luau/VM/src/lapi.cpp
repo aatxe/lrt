@@ -454,6 +454,29 @@ const char* lua_tostringatom(lua_State* L, int idx, int* atom)
     return getstr(s);
 }
 
+const char* lua_tolstringatom(lua_State* L, int idx, size_t* len, int* atom)
+{
+    StkId o = index2addr(L, idx);
+
+    if (!ttisstring(o))
+    {
+        if (len)
+            *len = 0;
+        return NULL;
+    }
+
+    TString* s = tsvalue(o);
+    if (len)
+        *len = s->len;
+    if (atom)
+    {
+        updateatom(L, s);
+        *atom = s->atom;
+    }
+
+    return getstr(s);
+}
+
 const char* lua_namecallatom(lua_State* L, int* atom)
 {
     TString* s = L->namecall;
@@ -1514,6 +1537,16 @@ void lua_cleartable(lua_State* L, int idx)
     if (tt->readonly)
         luaG_readonlyerror(L);
     luaH_clear(tt);
+}
+
+void lua_clonetable(lua_State* L, int idx)
+{
+    StkId t = index2addr(L, idx);
+    api_check(L, ttistable(t));
+
+    LuaTable* tt = luaH_clone(L, hvalue(t));
+    sethvalue(L, L->top, tt);
+    api_incr_top(L);
 }
 
 lua_Callbacks* lua_callbacks(lua_State* L)

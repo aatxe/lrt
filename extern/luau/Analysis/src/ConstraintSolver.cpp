@@ -31,13 +31,13 @@ LUAU_FASTFLAGVARIABLE(DebugLuauLogSolver)
 LUAU_FASTFLAGVARIABLE(DebugLuauLogSolverIncludeDependencies)
 LUAU_FASTFLAGVARIABLE(DebugLuauLogBindings)
 LUAU_FASTINTVARIABLE(LuauSolverRecursionLimit, 500)
-LUAU_FASTFLAGVARIABLE(LuauRemoveNotAnyHack)
 LUAU_FASTFLAGVARIABLE(DebugLuauEqSatSimplification)
 LUAU_FASTFLAG(LuauNewSolverPopulateTableLocations)
 LUAU_FASTFLAGVARIABLE(LuauAllowNilAssignmentToIndexer)
-LUAU_FASTFLAG(LuauUserTypeFunNoExtraConstraint)
 LUAU_FASTFLAG(LuauTrackInteriorFreeTypesOnScope)
 LUAU_FASTFLAGVARIABLE(LuauAlwaysFillInFunctionCallDiscriminantTypes)
+LUAU_FASTFLAGVARIABLE(LuauTrackInteriorFreeTablesOnScope)
+LUAU_FASTFLAGVARIABLE(LuauPrecalculateMutatedFreeTypes2)
 
 namespace Luau
 {
@@ -75,7 +75,7 @@ size_t HashBlockedConstraintId::operator()(const BlockedConstraintId& bci) const
 {
     if (auto blocked = get<BlockedType>(ty))
     {
-        Constraint* owner = blocked->getOwner();
+        const Constraint* owner = blocked->getOwner();
         LUAU_ASSERT(owner);
         return owner == constraint;
     }
@@ -355,13 +355,27 @@ ConstraintSolver::ConstraintSolver(
     {
         unsolvedConstraints.emplace_back(c);
 
-        // initialize the reference counts for the free types in this constraint.
-        for (auto ty : c->getMaybeMutatedFreeTypes())
+        if (FFlag::LuauPrecalculateMutatedFreeTypes2)
         {
-            // increment the reference count for `ty`
-            auto [refCount, _] = unresolvedConstraints.try_insert(ty, 0);
-            refCount += 1;
+            auto maybeMutatedTypesPerConstraint = c->getMaybeMutatedFreeTypes();
+            for (auto ty : maybeMutatedTypesPerConstraint)
+            {
+                auto [refCount, _] = unresolvedConstraints.try_insert(ty, 0);
+                refCount += 1;
+            }
+            maybeMutatedFreeTypes.emplace(c, maybeMutatedTypesPerConstraint);
         }
+        else
+        {
+            // initialize the reference counts for the free types in this constraint.
+            for (auto ty : c->getMaybeMutatedFreeTypes())
+            {
+                // increment the reference count for `ty`
+                auto [refCount, _] = unresolvedConstraints.try_insert(ty, 0);
+                refCount += 1;
+            }
+        }
+
 
         for (NotNull<const Constraint> dep : c->dependencies)
         {
@@ -446,22 +460,50 @@ void ConstraintSolver::run()
             if (success)
             {
                 unblock(c);
-                unsolvedConstraints.erase(unsolvedConstraints.begin() + i);
+                unsolvedConstraints.erase(unsolvedConstraints.begin() + ptrdiff_t(i));
 
-                // decrement the referenced free types for this constraint if we dispatched successfully!
-                for (auto ty : c->getMaybeMutatedFreeTypes())
+                if (FFlag::LuauPrecalculateMutatedFreeTypes2)
                 {
-                    size_t& refCount = unresolvedConstraints[ty];
-                    if (refCount > 0)
-                        refCount -= 1;
+                    const auto maybeMutated = maybeMutatedFreeTypes.find(c);
+                    if (maybeMutated != maybeMutatedFreeTypes.end())
+                    {
+                        for (auto ty : maybeMutated->second)
+                        {
+                            // There is a high chance that this type has been rebound
+                            // across blocked types, rebound free types, pending
+                            // expansion types, etc, so we need to follow it.
+                            ty = follow(ty);
+                            size_t& refCount = unresolvedConstraints[ty];
+                            if (refCount > 0)
+                                refCount -= 1;
 
-                    // We have two constraints that are designed to wait for the
-                    // refCount on a free type to be equal to 1: the
-                    // PrimitiveTypeConstraint and ReduceConstraint. We
-                    // therefore wake any constraint waiting for a free type's
-                    // refcount to be 1 or 0.
-                    if (refCount <= 1)
-                        unblock(ty, Location{});
+                            // We have two constraints that are designed to wait for the
+                            // refCount on a free type to be equal to 1: the
+                            // PrimitiveTypeConstraint and ReduceConstraint. We
+                            // therefore wake any constraint waiting for a free type's
+                            // refcount to be 1 or 0.
+                            if (refCount <= 1)
+                                unblock(ty, Location{});
+                        }
+                    }
+                }
+                else
+                {
+                    // decrement the referenced free types for this constraint if we dispatched successfully!
+                    for (auto ty : c->getMaybeMutatedFreeTypes())
+                    {
+                        size_t& refCount = unresolvedConstraints[ty];
+                        if (refCount > 0)
+                            refCount -= 1;
+
+                        // We have two constraints that are designed to wait for the
+                        // refCount on a free type to be equal to 1: the
+                        // PrimitiveTypeConstraint and ReduceConstraint. We
+                        // therefore wake any constraint waiting for a free type's
+                        // refcount to be 1 or 0.
+                        if (refCount <= 1)
+                            unblock(ty, Location{});
+                    }
                 }
 
                 if (logger)
@@ -553,7 +595,7 @@ void ConstraintSolver::finalizeTypeFunctions()
     }
 }
 
-bool ConstraintSolver::isDone()
+bool ConstraintSolver::isDone() const
 {
     return unsolvedConstraints.empty();
 }
@@ -642,6 +684,8 @@ bool ConstraintSolver::tryDispatch(NotNull<const Constraint> constraint, bool fo
         success = tryDispatch(*fcc, constraint);
     else if (auto fcc = get<FunctionCheckConstraint>(*constraint))
         success = tryDispatch(*fcc, constraint);
+    else if (auto tcc = get<TableCheckConstraint>(*constraint))
+        success = tryDispatch(*tcc, constraint);
     else if (auto fcc = get<PrimitiveTypeConstraint>(*constraint))
         success = tryDispatch(*fcc, constraint);
     else if (auto hpc = get<HasPropConstraint>(*constraint))
@@ -823,6 +867,9 @@ bool ConstraintSolver::tryDispatch(const IterableConstraint& c, NotNull<const Co
         TypeId tableTy =
             arena->addType(TableType{TableType::Props{}, TableIndexer{keyTy, valueTy}, TypeLevel{}, constraint->scope, TableState::Free});
 
+        if (FFlag::LuauTrackInteriorFreeTypesOnScope && FFlag::LuauTrackInteriorFreeTablesOnScope)
+            trackInteriorFreeType(constraint->scope, tableTy);
+
         unify(constraint, nextTy, tableTy);
 
         auto it = begin(c.variables);
@@ -959,16 +1006,6 @@ bool ConstraintSolver::tryDispatch(const TypeAliasExpansionConstraint& c, NotNul
     if (auto typeFn = get<TypeFunctionInstanceType>(follow(tf->type)))
         pushConstraint(NotNull(constraint->scope.get()), constraint->location, ReduceConstraint{tf->type});
 
-    if (!FFlag::LuauUserTypeFunNoExtraConstraint)
-    {
-        // If there are no parameters to the type function we can just use the type directly
-        if (tf->typeParams.empty() && tf->typePackParams.empty())
-        {
-            bindResult(tf->type);
-            return true;
-        }
-    }
-
     // Due to how pending expansion types and TypeFun's are created
     // If this check passes, we have created a cyclic / corecursive type alias
     // of size 0
@@ -981,14 +1018,11 @@ bool ConstraintSolver::tryDispatch(const TypeAliasExpansionConstraint& c, NotNul
         return true;
     }
 
-    if (FFlag::LuauUserTypeFunNoExtraConstraint)
+    // If there are no parameters to the type function we can just use the type directly
+    if (tf->typeParams.empty() && tf->typePackParams.empty())
     {
-        // If there are no parameters to the type function we can just use the type directly
-        if (tf->typeParams.empty() && tf->typePackParams.empty())
-        {
-            bindResult(tf->type);
-            return true;
-        }
+        bindResult(tf->type);
+        return true;
     }
 
     auto [typeArguments, packArguments] = saturateArguments(arena, builtinTypes, *tf, petv->typeArguments, petv->packArguments);
@@ -1154,10 +1188,7 @@ bool ConstraintSolver::tryDispatch(const TypeAliasExpansionConstraint& c, NotNul
     return true;
 }
 
-void ConstraintSolver::fillInDiscriminantTypes(
-    NotNull<const Constraint> constraint,
-    const std::vector<std::optional<TypeId>>& discriminantTypes
-)
+void ConstraintSolver::fillInDiscriminantTypes(NotNull<const Constraint> constraint, const std::vector<std::optional<TypeId>>& discriminantTypes)
 {
     for (std::optional<TypeId> ty : discriminantTypes)
     {
@@ -1171,22 +1202,8 @@ void ConstraintSolver::fillInDiscriminantTypes(
             continue;
         }
 
-        if (FFlag::LuauRemoveNotAnyHack)
-        {
-            // We bind any unused discriminants to the `*no-refine*` type indicating that it can be safely ignored.
-            emplaceType<BoundType>(asMutable(follow(*ty)), builtinTypes->noRefineType);
-        }
-        else
-        {
-            // We use `any` here because the discriminant type may be pointed at by both branches,
-            // where the discriminant type is not negated, and the other where it is negated, i.e.
-            // `unknown ~ unknown` and `~unknown ~ never`, so `T & unknown ~ T` and `T & ~unknown ~ never`
-            // v.s.
-            // `any ~ any` and `~any ~ any`, so `T & any ~ T` and `T & ~any ~ T`
-            //
-            // In practice, users cannot negate `any`, so this is an implementation detail we can always change.
-            emplaceType<BoundType>(asMutable(follow(*ty)), builtinTypes->anyType);
-        }
+        // We bind any unused discriminants to the `*no-refine*` type indicating that it can be safely ignored.
+        emplaceType<BoundType>(asMutable(follow(*ty)), builtinTypes->noRefineType);
     }
 }
 
@@ -1293,11 +1310,11 @@ bool ConstraintSolver::tryDispatch(const FunctionCallConstraint& c, NotNull<cons
 
         if (ftv)
         {
-            if (ftv->dcrMagicFunction)
-                usedMagic = ftv->dcrMagicFunction(MagicFunctionCallContext{NotNull{this}, constraint, c.callSite, c.argsPack, result});
-
-            if (ftv->dcrMagicRefinement)
-                ftv->dcrMagicRefinement(MagicRefinementContext{constraint->scope, c.callSite, c.discriminantTypes});
+            if (ftv->magic)
+            {
+                usedMagic = ftv->magic->infer(MagicFunctionCallContext{NotNull{this}, constraint, c.callSite, c.argsPack, result});
+                ftv->magic->refine(MagicRefinementContext{constraint->scope, c.callSite, c.discriminantTypes});
+            }
         }
 
         if (!usedMagic)
@@ -1323,22 +1340,8 @@ bool ConstraintSolver::tryDispatch(const FunctionCallConstraint& c, NotNull<cons
                 continue;
             }
 
-            if (FFlag::LuauRemoveNotAnyHack)
-            {
-                // We bind any unused discriminants to the `*no-refine*` type indicating that it can be safely ignored.
-                emplaceType<BoundType>(asMutable(follow(*ty)), builtinTypes->noRefineType);
-            }
-            else
-            {
-                // We use `any` here because the discriminant type may be pointed at by both branches,
-                // where the discriminant type is not negated, and the other where it is negated, i.e.
-                // `unknown ~ unknown` and `~unknown ~ never`, so `T & unknown ~ T` and `T & ~unknown ~ never`
-                // v.s.
-                // `any ~ any` and `~any ~ any`, so `T & any ~ T` and `T & ~any ~ T`
-                //
-                // In practice, users cannot negate `any`, so this is an implementation detail we can always change.
-                emplaceType<BoundType>(asMutable(follow(*ty)), builtinTypes->anyType);
-            }
+            // We bind any unused discriminants to the `*no-refine*` type indicating that it can be safely ignored.
+            emplaceType<BoundType>(asMutable(follow(*ty)), builtinTypes->noRefineType);
         }
     }
 
@@ -1533,6 +1536,28 @@ bool ConstraintSolver::tryDispatch(const FunctionCheckConstraint& c, NotNull<con
     return true;
 }
 
+bool ConstraintSolver::tryDispatch(const TableCheckConstraint& c, NotNull<const Constraint> constraint)
+{
+    // This is expensive as we need to traverse a (potentially large)
+    // literal up front in order to determine if there are any blocked
+    // types, otherwise we may run `matchTypeLiteral` multiple times,
+    // which right now may fail due to being non-idempotent (it
+    // destructively updates the underlying literal type).
+    auto blockedTypes = findBlockedTypesIn(c.table, c.astTypes);
+    for (const auto ty : blockedTypes)
+    {
+        block(ty, constraint);
+    }
+    if (!blockedTypes.empty())
+        return false;
+
+    Unifier2 u2{arena, builtinTypes, constraint->scope, NotNull{&iceReporter}};
+    std::vector<TypeId> toBlock;
+    (void)matchLiteralType(c.astTypes, c.astExpectedTypes, builtinTypes, arena, NotNull{&u2}, c.expectedType, c.exprType, c.table, toBlock);
+    LUAU_ASSERT(toBlock.empty());
+    return true;
+}
+
 bool ConstraintSolver::tryDispatch(const PrimitiveTypeConstraint& c, NotNull<const Constraint> constraint)
 {
     std::optional<TypeId> expectedType = c.expectedType ? std::make_optional<TypeId>(follow(*c.expectedType)) : std::nullopt;
@@ -1702,7 +1727,7 @@ bool ConstraintSolver::tryDispatchHasIndexer(
         for (TypeId part : parts)
         {
             TypeId r = arena->addType(BlockedType{});
-            getMutable<BlockedType>(r)->setOwner(const_cast<Constraint*>(constraint.get()));
+            getMutable<BlockedType>(r)->setOwner(constraint.get());
 
             bool ok = tryDispatchHasIndexer(recursionDepth, constraint, part, indexType, r, seen);
             // If we've cut a recursive loop short, skip it.
@@ -1734,7 +1759,7 @@ bool ConstraintSolver::tryDispatchHasIndexer(
         for (TypeId part : parts)
         {
             TypeId r = arena->addType(BlockedType{});
-            getMutable<BlockedType>(r)->setOwner(const_cast<Constraint*>(constraint.get()));
+            getMutable<BlockedType>(r)->setOwner(constraint.get());
 
             bool ok = tryDispatchHasIndexer(recursionDepth, constraint, part, indexType, r, seen);
             // If we've cut a recursive loop short, skip it.
@@ -1854,6 +1879,10 @@ bool ConstraintSolver::tryDispatch(const AssignPropConstraint& c, NotNull<const 
         else
         {
             TypeId newUpperBound = arena->addType(TableType{TableState::Free, TypeLevel{}, constraint->scope});
+
+            if (FFlag::LuauTrackInteriorFreeTypesOnScope && FFlag::LuauTrackInteriorFreeTablesOnScope)
+                trackInteriorFreeType(constraint->scope, newUpperBound);
+
             TableType* upperTable = getMutable<TableType>(newUpperBound);
             LUAU_ASSERT(upperTable);
 
@@ -2637,6 +2666,10 @@ TablePropLookupResult ConstraintSolver::lookupTableProp(
         NotNull<Scope> scope{ft->scope};
 
         const TypeId newUpperBound = arena->addType(TableType{TableState::Free, TypeLevel{}, scope});
+
+        if (FFlag::LuauTrackInteriorFreeTypesOnScope && FFlag::LuauTrackInteriorFreeTablesOnScope)
+            trackInteriorFreeType(constraint->scope, newUpperBound);
+
         TableType* tt = getMutable<TableType>(newUpperBound);
         LUAU_ASSERT(tt);
         TypeId propType = freshType(arena, builtinTypes, scope);
@@ -2874,10 +2907,10 @@ bool ConstraintSolver::blockOnPendingTypes(TypeId target, NotNull<const Constrai
     return !blocker.blocked;
 }
 
-bool ConstraintSolver::blockOnPendingTypes(TypePackId pack, NotNull<const Constraint> constraint)
+bool ConstraintSolver::blockOnPendingTypes(TypePackId targetPack, NotNull<const Constraint> constraint)
 {
     Blocker blocker{NotNull{this}, constraint};
-    blocker.traverse(pack);
+    blocker.traverse(targetPack);
     return !blocker.blocked;
 }
 

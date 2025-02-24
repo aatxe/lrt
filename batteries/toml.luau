@@ -7,11 +7,11 @@ type SerializerState = {
 }
 
 local function checkState(state: SerializerState, len: number)
-	local cur_len = buffer.len(state.buf)
-	if state.cursor + len >= cur_len then
-		local new_buffer = buffer.create(cur_len * 2)
-		buffer.copy(new_buffer, 0, state.buf)
-		state.buf = new_buffer
+	local currentLength = buffer.len(state.buf)
+	if state.cursor + len >= currentLength then
+		local newBuffer = buffer.create(currentLength * 2)
+		buffer.copy(newBuffer, 0, state.buf)
+		state.buf = newBuffer
 	end
 end
 
@@ -106,9 +106,9 @@ local function skipWhitespace(state: DeserializerState)
 end
 
 local function readLine(state: DeserializerState)
-	local next_line = string.find(state.buf, "\n", state.cursor) or string.len(state.buf) + 1
-	local line = string.sub(state.buf, state.cursor, next_line - 1)
-	state.cursor = next_line + 1
+	local nextLine = string.find(state.buf, "\n", state.cursor) or string.len(state.buf) + 1
+	local line = string.sub(state.buf, state.cursor, nextLine - 1)
+	state.cursor = nextLine + 1
 	return line
 end
 

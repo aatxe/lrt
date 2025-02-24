@@ -7,3 +7,12 @@ Lute also features a standard library of Luau code, called `std`, that aims to e
 
 Lute is still very much a work-in-progress, and should be treated as pre-1.0 software without stability guarantees for its API.
 We would love to hear from you about your experiences working with other Luau or Lua runtimes, and about what sort of functionality is needed to best make Luau accessible and productive for general-purpose programming.
+
+### Lute Libraries
+
+The Lute repository fundamentally contains three sets of libraries. These are as follows:
+- `lute`: The core runtime libraries in C++, which provides the basic functionality for general-purpose Luau programming.
+- `std`: The standard library, which extends those core C++ libraries with additional functionality in Luau.
+- `batteries`: A collection of useful, standalone Luau libraries that do not depend on `lute`.
+
+Contributions to any of these libraries are welcome, and we encourage you to open issues or pull requests if you have any feedback or contributions to make.

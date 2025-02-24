@@ -39,7 +39,7 @@ local function serialize_value(value)
 end
 
 local function has_nested_tables(tbl)
-	for _, v in pairs(tbl) do
+	for _, v in tbl do
 		if typeof(v) == "table" and next(v) ~= nil then
 			return true
 		end
@@ -56,7 +56,7 @@ local function table_to_toml(tbl, parent)
 		if typeof(v) == "table" and next(v) ~= nil then
 			if #v > 0 then
 				for _, entry in ipairs(v) do
-					result = result .. "\n[[" .. (parent and parent .. "." or "") .. k .. "]]\n"
+					result ..= "\n[[" .. (parent and parent .. "." or "") .. k .. "]]\n"
 					result = result .. table_to_toml(entry, nil)
 				end
 			else

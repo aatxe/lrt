@@ -201,7 +201,28 @@ int main(int argc, char** argv)
     program_argc = argc - program_args;
     program_argv = &argv[program_args];
 
-    const std::vector<std::string> files = getSourceFiles(argc, argv);
+    std::vector<std::string> files;
+
+    bool parsingFiles = true;
+
+    for (int i = 1; i < argc; i++)
+    {
+        if (strcmp(argv[i], "--") == 0)
+        {
+            parsingFiles = false; // stop collecting files
+            program_argc = argc - (i + 1);
+            program_argv = &argv[i + 1];
+            break;
+        }
+
+        if (parsingFiles)
+            files.push_back(std::string(argv[i])); // fix: Explicit conversion
+    }
+
+    if (program_argc == 0) // default to just running the script if no args are passed
+    {
+        program_argv = nullptr;
+    }
 
     // Given the source files, perform a typecheck here
     if (runTypecheck)

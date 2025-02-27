@@ -61,7 +61,7 @@ function argparse:parse(args)
 					found = true
 					if argument.kind == "OPTION" then
 						i += 1
-                        assert(not (i > #args), "Missing value for argument: " .. argument.name)
+						assert(not (i > #args), "Missing value for argument: " .. argument.name)
 						self.parsed.values[argument.name] = args[i]
 					else
 						self.parsed.flags[argument.name] = true
@@ -69,7 +69,7 @@ function argparse:parse(args)
 					break
 				end
 			end
-            assert(found, "Unknown argument: " .. name)
+			assert(found, "Unknown argument: " .. name)
 		elseif string.sub(arg, 1, 1) == "-" then
 			local flags = string.sub(arg, 2)
 			for j = 1, #flags do
@@ -81,7 +81,7 @@ function argparse:parse(args)
 						found = true
 						if argument.kind == "OPTION" then
 							i += 1
-                            assert(not (i > #args), "Missing value for argument: " .. argument.name)
+							assert(not (i > #args), "Missing value for argument: " .. argument.name)
 							self.parsed.values[argument.name] = args[i]
 						else
 							self.parsed.flags[argument.name] = true
@@ -89,7 +89,7 @@ function argparse:parse(args)
 						break
 					end
 				end
-                assert(found, "Unknown argument: " .. name)
+				assert(found, "Unknown argument: " .. name)
 			end
 		else
 			if pos_index <= #self.positional then
@@ -103,9 +103,9 @@ function argparse:parse(args)
 	end
 
 	for _, argument in self.arguments do
-        assert(argument)
+		assert(argument)
 		if argument.options.required and not self.parsed.values[argument.name] then
-            assert(self.parsed.values[argument.name], "Missing required argument: " .. argument.name)
+			assert(self.parsed.values[argument.name], "Missing required argument: " .. argument.name)
 		end
 		if not self.parsed.values[argument.name] and argument.options.default then
 			self.parsed.values[argument.name] = argument.options.default
@@ -128,9 +128,9 @@ end
 function argparse:help()
 	print("Usage:")
 	for _, argument in self.arguments do
-		local alias_str = table.concat(argument.options.aliases or {}, ", ")
-		local req_str = argument.options.required and "(required) " or ""
-		print(string.format("  --%s (-%s) - %s%s", argument.name, alias_str, req_str, argument.options.help or ""))
+		local aliasStr = table.concat(argument.options.aliases or {}, ", ")
+		local reqStr = argument.options.required and "(required) " or ""
+		print(string.format("  --%s (-%s) - %s%s", argument.name, aliasStr, reqStr, argument.options.help or ""))
 	end
 end
 

@@ -1,7 +1,7 @@
 local argparse = {}
 argparse.__index = argparse
 
-type ArgKind = "POSITIONAL" | "FLAG" | "OPTION"
+type ArgKind = "positional" | "flag" | "option"
 type ArgOptions = {
 	help: string?,
 	aliases: { string }?,
@@ -21,15 +21,24 @@ type ParseResult = {
 	fwdArgs: { string },
 }
 
-function argparse.new()
-	local self = setmetatable({}, argparse)
+type ParseData = {
+	arguments: { [number]: ArgData },
+	positional: { [number] : ArgData},
+	parsed: { [number]: ParseResult },
+}
+
+type ParseInterface = typeof(argparse)
+export type ParserType = setmetatable<ParseData, ParseInterface>
+
+function argparse.new(): ParserType
+	local self = setmetatable({}, argparse) :: ParserType
 	self.arguments = {}
 	self.positional = {}
 	self.parsed = { values = {}, flags = {}, fwdArgs = {} }
 	return self
 end
 
-function argparse:add(name, kind, options)
+function argparse.add(self: ParserType, name: string, kind: ArgKind, options: ArgOptions)
 	local argument = {
 		name = name,
 		kind = kind,
@@ -42,17 +51,20 @@ function argparse:add(name, kind, options)
 	end
 end
 
-function argparse:parse(args)
+function argparse.parse(self: ParserType, args: {string}): ()
 	local i = 1
 	local pos_index = 1
 	while i <= #args do
 		local arg = args[i]
+		
 		if arg == "--" then
 			for j = i + 1, #args do
 				table.insert(self.parsed.fwdArgs, args[j])
 			end
 			break
-		elseif string.sub(arg, 1, 2) == "--" then
+		end
+		
+		if string.sub(arg, 1, 2) == "--" then
 			local name = string.sub(arg, 3)
 			local found = false
 			for _, argument in self.arguments do
@@ -61,7 +73,7 @@ function argparse:parse(args)
 					found = true
 					if argument.kind == "OPTION" then
 						i += 1
-						assert(not (i > #args), "Missing value for argument: " .. argument.name)
+						assert(i <= #args, "Missing value for argument: " .. argument.name)
 						self.parsed.values[argument.name] = args[i]
 					else
 						self.parsed.flags[argument.name] = true
@@ -81,7 +93,7 @@ function argparse:parse(args)
 						found = true
 						if argument.kind == "OPTION" then
 							i += 1
-							assert(not (i > #args), "Missing value for argument: " .. argument.name)
+							assert(i <= #args, "Missing value for argument: " .. argument.name)
 							self.parsed.values[argument.name] = args[i]
 						else
 							self.parsed.flags[argument.name] = true
@@ -104,32 +116,32 @@ function argparse:parse(args)
 
 	for _, argument in self.arguments do
 		assert(argument)
-		if argument.options.required and not self.parsed.values[argument.name] then
+		if argument.options.required and self.parsed.values[argument.name] == nil then
 			assert(self.parsed.values[argument.name], "Missing required argument: " .. argument.name)
 		end
-		if not self.parsed.values[argument.name] and argument.options.default then
+		if self.parsed.values[argument.name] == nil and argument.options.default then
 			self.parsed.values[argument.name] = argument.options.default
 		end
 	end
 end
 
-function argparse:get(name)
+function argparse.get(self: ParserType, name: string): boolean
 	return self.parsed.values[name]
 end
 
-function argparse:has(name)
+function argparse.has(self:ParserType, name: string): boolean
 	return self.parsed.flags[name] ~= nil
 end
 
-function argparse:getFwdArgs()
+function argparse.getFwdArgs(): { string } | nil
 	return self.parsed.fwdArgs
 end
 
-function argparse:help()
+function argparse.help(self: ParserType): ()
 	print("Usage:")
 	for _, argument in self.arguments do
 		local aliasStr = table.concat(argument.options.aliases or {}, ", ")
-		local reqStr = argument.options.required and "(required) " or ""
+		local reqStr = if argument.options.required then "(required) " else ""
 		print(string.format("  --%s (-%s) - %s%s", argument.name, aliasStr, reqStr, argument.options.help or ""))
 	end
 end

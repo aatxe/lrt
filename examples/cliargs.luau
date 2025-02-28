@@ -2,9 +2,9 @@ local cliargs = require("@batteries/cliargs")
 
 local parser = cliargs.new()
 
-parser:add("input", "POSITIONAL", { help = "Input file" })
-parser:add("verbose", "FLAG", { help = "Enable verbose mode", aliases = { "v" } })
-parser:add("output", "OPTION", { help = "Output file", aliases = { "o" }, default = "default.txt" })
+parser:add("input", "positional", { help = "Input file" })
+parser:add("verbose", "flag", { help = "Enable verbose mode", aliases = { "v" } })
+parser:add("output", "option", { help = "Output file", aliases = { "o" }, default = "default.txt" })
 
 local args = { ... }
 

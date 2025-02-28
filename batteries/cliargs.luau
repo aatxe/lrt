@@ -1,5 +1,5 @@
-local argparse = {}
-argparse.__index = argparse
+local cliargs = {}
+cliargs.__index = cliargs
 
 type ArgKind = "positional" | "flag" | "option"
 type ArgOptions = {
@@ -27,18 +27,18 @@ type ParseData = {
 	parsed: { [number]: ParseResult },
 }
 
-type ParseInterface = typeof(argparse)
+type ParseInterface = typeof(cliargs)
 export type ParserType = setmetatable<ParseData, ParseInterface>
 
-function argparse.new(): ParserType
-	local self = setmetatable({}, argparse) :: ParserType
+function cliargs.new(): ParserType
+	local self = setmetatable({}, cliargs) :: ParserType
 	self.arguments = {}
 	self.positional = {}
 	self.parsed = { values = {}, flags = {}, fwdArgs = {} }
 	return self
 end
 
-function argparse.add(self: ParserType, name: string, kind: ArgKind, options: ArgOptions)
+function cliargs.add(self: ParserType, name: string, kind: ArgKind, options: ArgOptions)
 	local argument = {
 		name = name,
 		kind = kind,
@@ -51,7 +51,7 @@ function argparse.add(self: ParserType, name: string, kind: ArgKind, options: Ar
 	end
 end
 
-function argparse.parse(self: ParserType, args: {string}): ()
+function cliargs.parse(self: ParserType, args: {string}): ()
 	local i = 1
 	local pos_index = 1
 	while i <= #args do
@@ -125,19 +125,19 @@ function argparse.parse(self: ParserType, args: {string}): ()
 	end
 end
 
-function argparse.get(self: ParserType, name: string): boolean
+function cliargs.get(self: ParserType, name: string): boolean
 	return self.parsed.values[name]
 end
 
-function argparse.has(self:ParserType, name: string): boolean
+function cliargs.has(self:ParserType, name: string): boolean
 	return self.parsed.flags[name] ~= nil
 end
 
-function argparse.getFwdArgs(): { string } | nil
+function cliargs.getFwdArgs(): { string } | nil
 	return self.parsed.fwdArgs
 end
 
-function argparse.help(self: ParserType): ()
+function cliargs.help(self: ParserType): ()
 	print("Usage:")
 	for _, argument in self.arguments do
 		local aliasStr = table.concat(argument.options.aliases or {}, ", ")
@@ -146,4 +146,4 @@ function argparse.help(self: ParserType): ()
 	end
 end
 
-return argparse
+return cliargs

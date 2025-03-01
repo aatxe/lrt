@@ -82,7 +82,7 @@ static ExprResult parseExpr(std::string& source)
     }
 }
 
-static std::vector<size_t> computeLineOffsets(const std::string& content)
+static std::vector<size_t> computeLineOffsets(std::string_view content)
 {
     std::vector<size_t> result{};
     result.emplace_back(0);
@@ -102,22 +102,48 @@ static std::vector<size_t> computeLineOffsets(const std::string& content)
     return result;
 }
 
+static std::vector<Luau::Comment> commentsWithinSpan(const std::vector<Luau::Comment> comments, Luau::Location span)
+{
+    // TODO: O(n), we could probably binary search if there are a lot of comments
+    std::vector<Luau::Comment> result;
+
+    for (const auto& comment : comments)
+        if (span.encloses(comment.location))
+            result.emplace_back(comment);
+
+    return result;
+}
+
+struct Trivia {
+    enum TriviaKind {
+        Whitespace,
+        SingleLineComment,
+        MultiLineComment,
+    };
+
+    TriviaKind kind;
+    Luau::Location location;
+    std::string_view text;
+};
+
 struct AstSerialize : public Luau::AstVisitor
 {
     lua_State* L;
     Luau::CstNodeMap cstNodeMap;
-    const std::string& source;
+    std::string_view source;
     Luau::Position currentPosition{0,0};
     std::vector<size_t> lineOffsets;
+    std::vector<Luau::Comment> commentLocations;
 
     // absolute index for the table where we're storing locals
     int localTableIndex;
 
-    AstSerialize(lua_State* L, const std::string& source, Luau::CstNodeMap cstNodeMap)
+    AstSerialize(lua_State* L, std::string_view source, Luau::CstNodeMap cstNodeMap, std::vector<Luau::Comment> commentLocations)
         : L(L)
         , cstNodeMap(std::move(cstNodeMap))
         , source(source)
         , lineOffsets(computeLineOffsets(source))
+        , commentLocations(std::move(commentLocations))
     {
         lua_createtable(L, 0, 0);
         localTableIndex = lua_absindex(L, -1);
@@ -155,23 +181,63 @@ struct AstSerialize : public Luau::AstVisitor
             currentPosition.column += unsigned(contents.size());
     }
 
-    std::string extractTrivia(const Luau::Position& newPos)
+    Trivia extractWhitespace(const Luau::Position& newPos)
     {
-        LUAU_ASSERT(currentPosition <= newPos);
-        if (currentPosition == newPos)
-            return "";
+        const auto beginPosition = currentPosition;
 
+        LUAU_ASSERT(currentPosition < newPos);
         LUAU_ASSERT(currentPosition.line < lineOffsets.size());
         LUAU_ASSERT(newPos.line < lineOffsets.size());
         size_t startOffset = lineOffsets[currentPosition.line] + currentPosition.column;
         size_t endOffset = lineOffsets[newPos.line] + newPos.column;
 
-        std::string trivia = source.substr(startOffset, endOffset - startOffset);
+        std::string_view trivia = source.substr(startOffset, endOffset - startOffset);
 
+        // TODO: advancePosition is more of a debug check - we can probably just rely on newPos here
         advancePosition(trivia);
         LUAU_ASSERT(currentPosition == newPos);
 
-        return trivia;
+        return Trivia{Trivia::Whitespace, Luau::Location{beginPosition, newPos}, trivia};
+    }
+
+    std::vector<Trivia> extractTrivia(const Luau::Position& newPos)
+    {
+        LUAU_ASSERT(currentPosition <= newPos);
+        if (currentPosition == newPos)
+            return {};
+
+        std::vector<Trivia> result;
+
+        const auto comments = commentsWithinSpan(commentLocations, Luau::Location{currentPosition, newPos});
+        for (const auto& comment : comments)
+        {
+            if (currentPosition < comment.location.begin)
+                result.emplace_back(extractWhitespace(comment.location.begin));
+
+            LUAU_ASSERT(comment.location.begin.line < lineOffsets.size());
+            LUAU_ASSERT(comment.location.end.line < lineOffsets.size());
+
+            size_t startOffset = lineOffsets[comment.location.begin.line] + comment.location.begin.column;
+            size_t endOffset = lineOffsets[comment.location.end.line] + comment.location.end.column;
+
+            std::string_view commentText = source.substr(startOffset, endOffset - startOffset);
+
+            // TODO: advancePosition is more of a debug check - we can probably just set currentPosition directly here
+            advancePosition(commentText);
+            LUAU_ASSERT(currentPosition == comment.location.end);
+
+            // TODO: currently the text includes the `--` / `--[[` characters, should it?
+            LUAU_ASSERT(comment.type != Luau::Lexeme::BrokenComment);
+            auto kind = comment.type == Luau::Lexeme::Comment ? Trivia::SingleLineComment : Trivia::MultiLineComment;
+            result.emplace_back(Trivia{kind, comment.location, commentText});
+        }
+
+        if (currentPosition < newPos)
+            result.emplace_back(extractWhitespace(newPos));
+
+        LUAU_ASSERT(currentPosition == newPos);
+
+        return result;
     }
 
     void serialize(Luau::Position position)
@@ -329,26 +395,37 @@ struct AstSerialize : public Luau::AstVisitor
         withLocation(node->location);
     }
 
-    void serializeTrivia(const std::string& trivia)
+    void serializeTrivia(const std::vector<Trivia>& trivia)
     {
         lua_rawcheckstack(L, 2);
-        lua_createtable(L, 1, 0);
+        lua_createtable(L, trivia.size(), 0);
 
-        if (!trivia.empty())
+        for (size_t i = 0; i < trivia.size(); i++)
         {
-            // TODO: tokenize the trivia into smaller parts
             lua_rawcheckstack(L, 2);
             lua_createtable(L, 0, 3);
 
-            lua_pushstring(L, "whitespace");
+            switch (trivia[i].kind)
+            {
+                case Trivia::Whitespace:
+                    lua_pushstring(L, "whitespace");
+                    break;
+                case Trivia::SingleLineComment:
+                    lua_pushstring(L, "comment");
+                    break;
+                case Trivia::MultiLineComment:
+                    lua_pushstring(L, "blockcomment");
+                    break;
+            }
             lua_setfield(L, -2, "tag");
 
-            // TODO: push location
+            serialize(trivia[i].location);
+            lua_setfield(L, -2, "location");
 
-            lua_pushlstring(L, trivia.data(), trivia.size());
+            lua_pushlstring(L, trivia[i].text.data(), trivia[i].text.size());
             lua_setfield(L, -2, "text");
 
-            lua_rawseti(L, -2, 1);
+            lua_rawseti(L, -2, i + 1);
         }
     }
 
@@ -1517,7 +1594,7 @@ int luau_parse(lua_State* L)
 
     lua_createtable(L, 0, 2);
 
-    AstSerialize serializer{L, source, result.parseResult.cstNodeMap};
+    AstSerialize serializer{L, source, result.parseResult.cstNodeMap, result.parseResult.commentLocations};
     serializer.visit(result.parseResult.root);
     lua_setfield(L, -2, "root");
 
@@ -1559,7 +1636,7 @@ int luau_parseexpr(lua_State* L)
         luaL_error(L, "parsing failed:\n%s", fullError.c_str());
     }
 
-    AstSerialize serializer{L, source, Luau::CstNodeMap{nullptr}};
+    AstSerialize serializer{L, source, Luau::CstNodeMap{nullptr}, result.commentLocations};
     serializer.visit(result.root);
 
     return 1;

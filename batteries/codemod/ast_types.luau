@@ -14,20 +14,20 @@ export type Whitespace = {
 	text: string,
 }
 
--- type SingleLineComment = {
--- 	tag: "single_line_comment",
--- 	location: Location,
--- 	text: string,
--- }
+export type SingleLineComment = {
+	tag: "comment",
+	location: Location,
+	text: string,
+}
 
--- type MultiLineComment = {
--- 	tag: "multi_line_comment",
--- 	location: Location,
--- 	text: string,
--- 	depth: number,
--- }
+export type MultiLineComment = {
+	tag: "blockcomment",
+	location: Location,
+	text: string,
+	-- TODO: depth: number,
+}
 
-export type Trivia = Whitespace
+export type Trivia = Whitespace | SingleLineComment | MultiLineComment
 
 export type Token<Kind = string> = {
 	read leadingTrivia: { Trivia },

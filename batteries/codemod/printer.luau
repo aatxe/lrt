@@ -7,7 +7,7 @@ local function exhaustiveMatch(value: never): never
 end
 
 local function printTrivia(trivia: T.Trivia): string
-	if trivia.tag == "whitespace" then
+	if trivia.tag == "whitespace" or trivia.tag == "comment" or trivia.tag == "blockcomment" then
 		return trivia.text
 	else
 		return exhaustiveMatch(trivia.tag)

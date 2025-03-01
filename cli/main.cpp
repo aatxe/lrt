@@ -214,7 +214,7 @@ int main(int argc, char** argv)
             program_argv = &argv[i + 1];
             break;
         }
-        else if (argv[i][0] == '-')
+        else if (argv[i][0] == '-' && argv[i][1] != '\0')
             continue;
 
         if (parsingFiles)

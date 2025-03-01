@@ -4,4 +4,4 @@
 #include "Luau/Frontend.h"
 #include "Luau/FileUtils.h"
 
-int typecheck(const std::vector<std::string> sourceFiles);
+int typecheck(const std::vector<std::string>& sourceFiles);

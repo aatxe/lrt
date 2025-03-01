@@ -334,53 +334,12 @@ struct AstSerialize : public Luau::AstVisitor
         lua_setfield(L, -2, "location");
     }
 
-    static std::string toString(Luau::AstExprBinary::Op& op)
-    {
-        switch (op)
-        {
-        case Luau::AstExprBinary::Op::Add:
-            return "+";
-        case Luau::AstExprBinary::Op::Sub:
-            return "-";
-        case Luau::AstExprBinary::Op::Mul:
-            return "*";
-        case Luau::AstExprBinary::Op::Div:
-            return "/";
-        case Luau::AstExprBinary::Op::FloorDiv:
-            return "//";
-        case Luau::AstExprBinary::Op::Mod:
-            return "%";
-        case Luau::AstExprBinary::Op::Pow:
-            return "^";
-        case Luau::AstExprBinary::Op::Concat:
-            return "..";
-        case Luau::AstExprBinary::Op::CompareNe:
-            return "~=";
-        case Luau::AstExprBinary::Op::CompareEq:
-            return "==";
-        case Luau::AstExprBinary::Op::CompareLt:
-            return "<";
-        case Luau::AstExprBinary::Op::CompareLe:
-            return "<=";
-        case Luau::AstExprBinary::Op::CompareGt:
-            return ">";
-        case Luau::AstExprBinary::Op::CompareGe:
-            return ">=";
-        case Luau::AstExprBinary::Op::And:
-            return "and";
-        case Luau::AstExprBinary::Op::Or:
-            return "or";
-        case Luau::AstExprBinary::Op::Op__Count:
-            return "N/A";
-        }
-    }
-
     void serialize(Luau::AstExprBinary::Op& op)
     {
         if (op == Luau::AstExprBinary::Op::Op__Count)
             luaL_error(L, "encountered illegal operator: Op__Count");
 
-        lua_pushstring(L, toString(op).data());
+        lua_pushstring(L, Luau::toString(op).data());
     }
 
     // preambleSize should encode the size of the fields we're setting up for _all_ nodes.
@@ -805,7 +764,7 @@ struct AstSerialize : public Luau::AstVisitor
         lua_setfield(L, -2, "lhsoperand");
 
         if (const auto cstNode = lookupCstNode<Luau::CstExprOp>(node))
-            serializeToken(cstNode->opPosition, toString(node->op).data());
+            serializeToken(cstNode->opPosition, Luau::toString(node->op).data());
         else
             serialize(node->op);
         lua_setfield(L, -2, "operator");

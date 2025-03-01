@@ -16,7 +16,7 @@ namespace vm
 int lua_defer(lua_State* L);
 
 static const luaL_Reg lib[] = {
-    {"create", lua_spawn},
+    {"spawn", lua_spawn},
     {nullptr, nullptr},
 };
 

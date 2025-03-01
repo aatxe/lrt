@@ -1,10 +1,10 @@
 --!strict
-local codemod = require("@std/codemod")
-local parser = require("@std/codemod/parser")
-local printer = require("@std/codemod/printer")
-local visitor = require("@std/codemod/visitor")
+local codemod = require("@batteries/codemod")
+local parser = require("@batteries/codemod/parser")
+local printer = require("@batteries/codemod/printer")
+local visitor = require("@batteries/codemod/visitor")
 
-local T = require("@std/codemod/ast_types")
+local T = require("@batteries/codemod/ast_types")
 
 local function uppercaseVariables(ctx: codemod.Context)
 	local cst = parser.parse(ctx.source)

@@ -1,7 +1,7 @@
 --!strict
-local codemod = require("@std/codemod")
-local parser = require("@std/codemod/parser")
-local printer = require("@std/codemod/printer")
+local codemod = require("@batteries/codemod")
+local parser = require("@batteries/codemod/parser")
+local printer = require("@batteries/codemod/printer")
 
 local function identityTransform(ctx: codemod.Context)
 	local cst = parser.parse(ctx.source)

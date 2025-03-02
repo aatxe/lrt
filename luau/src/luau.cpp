@@ -40,13 +40,7 @@ struct ExprResult
     std::shared_ptr<Luau::Allocator> allocator;
     std::shared_ptr<Luau::AstNameTable> names;
 
-    Luau::AstExpr* root;
-    size_t lines = 0;
-
-    std::vector<Luau::HotComment> hotcomments;
-    std::vector<Luau::ParseError> errors;
-
-    std::vector<Luau::Comment> commentLocations;
+    Luau::ParseExprResult parseResult;
 };
 
 static ExprResult parseExpr(std::string& source)
@@ -58,22 +52,9 @@ static ExprResult parseExpr(std::string& source)
     options.captureComments = true;
     options.allowDeclarationSyntax = false;
 
-    Luau::Parser p(source.data(), source.size(), *names, *allocator, options);
+    auto parseResult = Luau::Parser::parseExpr(source.data(), source.size(), *names, *allocator, options);
 
-    try
-    {
-        Luau::AstExpr* expr = p.parseExpr();
-        size_t lines = p.lexer.current().location.end.line + (source.size() > 0 && source.data()[source.size() - 1] != '\n');
-
-        return ExprResult{allocator, names, expr, lines, std::move(p.hotcomments), std::move(p.parseErrors), std::move(p.commentLocations)};
-    }
-    catch (Luau::ParseError& err)
-    {
-        // when catching a fatal error, append it to the list of non-fatal errors and return
-        p.parseErrors.push_back(err);
-
-        return ExprResult{nullptr, nullptr, nullptr, 0, {}, std::move(p.parseErrors)};
-    }
+    return ExprResult{allocator, names, std::move(parseResult)};
 }
 
 struct AstSerialize : public Luau::AstVisitor
@@ -1304,13 +1285,15 @@ int luau_parseexpr(lua_State* L)
 
     ExprResult result = parseExpr(source);
 
-    if (!result.errors.empty())
+    auto& errors = result.parseResult.errors;
+
+    if (!errors.empty())
     {
         std::vector<std::string> locationStrings{};
-        locationStrings.reserve(result.errors.size());
+        locationStrings.reserve(errors.size());
 
         size_t size = 0;
-        for (auto error : result.errors)
+        for (auto error : errors)
         {
             locationStrings.emplace_back(Luau::toString(error.getLocation()));
             size += locationStrings.back().size() + 2 + error.getMessage().size() + 1;
@@ -1319,11 +1302,11 @@ int luau_parseexpr(lua_State* L)
         std::string fullError;
         fullError.reserve(size);
 
-        for (size_t i = 0; i < result.errors.size(); i++)
+        for (size_t i = 0; i < errors.size(); i++)
         {
             fullError += locationStrings[i];
             fullError += ": ";
-            fullError += result.errors[i].getMessage();
+            fullError += errors[i].getMessage();
             fullError += "\n";
         }
 
@@ -1331,7 +1314,7 @@ int luau_parseexpr(lua_State* L)
     }
 
     AstSerialize serializer{L};
-    serializer.visit(result.root);
+    serializer.visit(result.parseResult.expr);
 
     return 1;
 }

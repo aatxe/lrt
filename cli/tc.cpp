@@ -4,31 +4,9 @@
 #include "Luau/Error.h"
 #include "Luau/Transpiler.h"
 #include "Luau/TypeAttach.h"
+#include "Luau/Require.h"
 
-static const std::string kLuteDefinitions = R"LUTE_TYPES(
--- Net api
-declare net: {
-    get: (string) -> string,
-    getAsync: (string) -> string,
-}
--- fs api
-declare class file end
-declare fs: {
- -- probably not the correct sig
-    open: (string, "r" | "w" | "a" | "r+" | "w+") -> file,
-    close: (file) -> (),
-    read: (file) -> string,
-    write: (file, string) -> (),
-    readfiletostring : (string) -> string,
-    writestringtofile : (string, string) -> (),
- -- is this right? I feel like we want a promise type here
-    readasync : (string) -> string,
-}
-
--- globals
-declare function spawn(path: string): any
-
-)LUTE_TYPES";
+LUAU_FASTFLAG(LuauSolverV2)
 
 struct LuteFileResolver : Luau::FileResolver
 {
@@ -57,7 +35,21 @@ struct LuteFileResolver : Luau::FileResolver
 
     std::optional<Luau::ModuleInfo> resolveModule(const Luau::ModuleInfo* context, Luau::AstExpr* node) override
     {
-	// TODO: Need to handle requires
+        if (Luau::AstExprConstantString* expr = node->as<Luau::AstExprConstantString>())
+        {
+            std::string path{expr->value.data, expr->value.size};
+
+            AnalysisRequireContext requireContext{context->name};
+            AnalysisCacheManager cacheManager;
+            AnalysisErrorHandler errorHandler;
+
+            RequireResolver resolver(path, requireContext, cacheManager, errorHandler);
+            RequireResolver::ResolvedRequire resolvedRequire = resolver.resolveRequire();
+
+            if (resolvedRequire.status == RequireResolver::ModuleStatus::FileRead)
+                return {{resolvedRequire.identifier}};
+        }
+
         return std::nullopt;
     }
 
@@ -69,7 +61,46 @@ struct LuteFileResolver : Luau::FileResolver
     }
 
 private:
-// TODO: add require resolver;
+    struct AnalysisRequireContext : RequireResolver::RequireContext
+    {
+        explicit AnalysisRequireContext(std::string path)
+            : path(std::move(path))
+        {
+        }
+
+        std::string getPath() override
+        {
+            return path;
+        }
+
+        bool isRequireAllowed() override
+        {
+            return true;
+        }
+
+        bool isStdin() override
+        {
+            return path == "-";
+        }
+
+        std::string createNewIdentifer(const std::string& path) override
+        {
+            return path;
+        }
+
+    private:
+        std::string path;
+    };
+
+    struct AnalysisCacheManager : public RequireResolver::CacheManager
+    {
+        AnalysisCacheManager() = default;
+    };
+
+    struct AnalysisErrorHandler : RequireResolver::ErrorHandler
+    {
+        AnalysisErrorHandler() = default;
+    };
 };
 
 struct LuteConfigResolver : Luau::ConfigResolver
@@ -222,6 +253,9 @@ std::vector<std::string> processSourceFiles(const std::vector<std::string>& sour
 
 int typecheck(const std::vector<std::string>& sourceFilesInput)
 {
+    // Lute only supports the new type solver
+    FFlag::LuauSolverV2.value = true;
+
     std::vector<std::string> sourceFiles = processSourceFiles(sourceFilesInput);
 
     if (sourceFiles.empty())
@@ -243,9 +277,6 @@ int typecheck(const std::vector<std::string>& sourceFilesInput)
     Luau::Frontend frontend(&fileResolver, &configResolver, frontendOptions);
 
     Luau::registerBuiltinGlobals(frontend, frontend.globals);
-    Luau::LoadDefinitionFileResult loadResult =
-        frontend.loadDefinitionFile(frontend.globals, frontend.globals.globalScope, kLuteDefinitions, "@luau", false, false);
-    LUAU_ASSERT(loadResult.success);
     Luau::freeze(frontend.globals.globalTypes);
 
     for (const std::string& path : sourceFiles)

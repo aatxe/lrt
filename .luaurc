@@ -3,5 +3,6 @@
     "aliases": {
         "batteries": "batteries",
         "std": "std",
+        "lute": "definitions"
     }
 }

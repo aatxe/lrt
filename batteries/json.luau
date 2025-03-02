@@ -54,7 +54,8 @@ local function write_spaces(state: SerializerState)
 			state.cursor += 4
 		end
 	else
-		buffer.writeu8(state.buf, state.cursor, string.byte(" "))
+		-- FIXME: cast required by Luau bug (https://github.com/luau-lang/luau/issues/1703)
+		buffer.writeu8(state.buf, state.cursor, string.byte(" ") :: number)
 
 		state.cursor += 1
 	end
@@ -67,8 +68,6 @@ local function write_string(state: SerializerState, str: string)
 
 	state.cursor += #str
 end
-
-local serialize_any
 
 local ESCAPE_MAP = {
 	[0x5C] = string.byte("\\"), -- 5C = '\'
@@ -185,7 +184,7 @@ local function serialize_table(state: SerializerState, object: Object)
 	write_byte(state, string.byte("}"))
 end
 
-serialize_any = function(state: SerializerState, value: Value)
+function serialize_any(state: SerializerState, value: Value)
 	local value_type = type(value)
 
 	if value == json.NULL then
@@ -197,7 +196,7 @@ serialize_any = function(state: SerializerState, value: Value)
 	elseif value_type == "string" then
 		serialize_string(state, value :: string)
 	elseif value_type == "table" then
-		if #(value :: {}) == 0 and next(value :: {}) ~= nil then
+		if #(value :: {}) == 0 and next(value :: { [any]: any }) ~= nil then
 			serialize_table(state, value :: Object)
 		else
 			serialize_array(state, value :: Array)
@@ -431,7 +430,7 @@ local function deserialize_object(state: DeserializerState): Object
 	return current
 end
 
-deserialize = function(state: DeserializerState): Value
+function deserialize(state: DeserializerState): Value
 	skip_whitespace(state)
 
 	local four_chars = string.sub(state.src, state.cursor, state.cursor + 3)
@@ -447,16 +446,20 @@ deserialize = function(state: DeserializerState): Value
 		return false
 	elseif string.match(state.src, "^[%d%.]", state.cursor) then
 		-- number
-		return deserialize_number(state)
+		return deserialize_number(state :: DeserializerState) -- FIXME: cast required by Luau bug (https://github.com/luau-lang/luau/issues/1702)
 	elseif string.byte(state.src, state.cursor) == string.byte('"') then
-		return deserialize_string(state)
+		return deserialize_string(state :: DeserializerState) -- FIXME: cast required by Luau bug (https://github.com/luau-lang/luau/issues/1702)
 	elseif string.byte(state.src, state.cursor) == string.byte("[") then
-		return deserialize_array(state)
+		return deserialize_array(state :: DeserializerState) -- FIXME: cast required by Luau bug (https://github.com/luau-lang/luau/issues/1702)
 	elseif string.byte(state.src, state.cursor) == string.byte("{") then
-		return deserialize_object(state)
+		return deserialize_object(state :: DeserializerState) -- FIXME: cast required by Luau bug (https://github.com/luau-lang/luau/issues/1702)
 	end
 
-	return deserializer_error(state, `Unexpected token '{string.sub(state.src, state.cursor, state.cursor)}'`)
+	-- FIXME: cast required by Luau bug (https://github.com/luau-lang/luau/issues/1702)
+	return deserializer_error(
+		state :: DeserializerState,
+		`Unexpected token '{string.sub(state.src, state.cursor, state.cursor)}'`
+	)
 end
 
 -- user-facing

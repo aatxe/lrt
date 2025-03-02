@@ -8,6 +8,6 @@ print(serialize)
 
 local deserialized = json.deserialize([[{
     "hello": "world"
-}]])
+}]]) :: { hello: string }
 
 print(deserialized.hello)

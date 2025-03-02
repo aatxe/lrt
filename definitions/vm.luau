@@ -1,6 +1,6 @@
 local vm = {}
 
-function vm.spawn(file: string): any
+function vm.create(file: string): any
 	error("not implemented")
 end
 

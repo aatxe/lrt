@@ -45,7 +45,7 @@ local threadCount = 8
 local threads = {}
 
 for i = 1, threadCount do
-    table.insert(threads, vm.spawn("./parallel_sort_helper"))
+    table.insert(threads, vm.create("./parallel_sort_helper"))
 end
 
 local function parallelMergeSort(t, comp)

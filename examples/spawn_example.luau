@@ -4,9 +4,9 @@ local task = require("@std/task")
 
 print("start")
 
-local vm1 = vm.spawn("./fib")
-local vm2 = vm.spawn("./fib")
-local vm3 = vm.spawn("./fib")
+local vm1 = vm.create("./fib")
+local vm2 = vm.create("./fib")
+local vm3 = vm.create("./fib")
 
 print("fib(15):", vm1.fib(15))
 print("fib(20):", vm2.fib(20))

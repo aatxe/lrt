@@ -181,9 +181,9 @@ struct AstSerialize : public Luau::AstVisitor
             currentPosition.column += unsigned(contents.size());
     }
 
-    Trivia extractWhitespace(const Luau::Position& newPos)
+    std::vector<Trivia> extractWhitespace(const Luau::Position& newPos)
     {
-        const auto beginPosition = currentPosition;
+        auto beginPosition = currentPosition;
 
         LUAU_ASSERT(currentPosition < newPos);
         LUAU_ASSERT(currentPosition.line < lineOffsets.size());
@@ -193,11 +193,31 @@ struct AstSerialize : public Luau::AstVisitor
 
         std::string_view trivia = source.substr(startOffset, endOffset - startOffset);
 
-        // TODO: advancePosition is more of a debug check - we can probably just rely on newPos here
-        advancePosition(trivia);
+        // Tokenize whitespace into smaller parts. Whitespace is separated by `\n` characters
+        std::vector<Trivia> result;
+
+        while (!trivia.empty())
+        {
+            auto index = trivia.find('\n');
+            std::string_view part;
+            if (index == std::string::npos)
+                part = trivia;
+            else
+            {
+                part = trivia.substr(0, index + 1);
+                trivia.remove_prefix(index + 1);
+            }
+
+            advancePosition(part);
+            result.push_back(Trivia{Trivia::Whitespace, Luau::Location{beginPosition, currentPosition}, part});
+            beginPosition = currentPosition;
+
+            if (index == std::string::npos)
+                break;
+        }
         LUAU_ASSERT(currentPosition == newPos);
 
-        return Trivia{Trivia::Whitespace, Luau::Location{beginPosition, newPos}, trivia};
+        return result;
     }
 
     std::vector<Trivia> extractTrivia(const Luau::Position& newPos)
@@ -212,7 +232,10 @@ struct AstSerialize : public Luau::AstVisitor
         for (const auto& comment : comments)
         {
             if (currentPosition < comment.location.begin)
-                result.emplace_back(extractWhitespace(comment.location.begin));
+            {
+                auto whitespace = extractWhitespace(comment.location.begin);
+                result.insert(result.end(), whitespace.begin(), whitespace.end());
+            }
 
             LUAU_ASSERT(comment.location.begin.line < lineOffsets.size());
             LUAU_ASSERT(comment.location.end.line < lineOffsets.size());
@@ -233,7 +256,10 @@ struct AstSerialize : public Luau::AstVisitor
         }
 
         if (currentPosition < newPos)
-            result.emplace_back(extractWhitespace(newPos));
+        {
+            auto whitespace = extractWhitespace(newPos);
+            result.insert(result.end(), whitespace.begin(), whitespace.end());
+        }
 
         LUAU_ASSERT(currentPosition == newPos);
 

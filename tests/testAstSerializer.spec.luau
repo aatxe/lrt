@@ -1,4 +1,8 @@
 local luau = require("@lute/luau")
+local fs = require("@lute/fs")
+
+local parser = require("@batteries/syntax/parser")
+local printer = require("@batteries/syntax/printer")
 
 local function test_tokenContainsLeadingSpaces()
 	local block = luau.parse("  local x = 1").root
@@ -70,8 +74,26 @@ local function test_tokenizeWhitespace()
 	assert(token.leadingTrivia[3].text == "\n")
 end
 
+local function test_roundtrippableAst()
+	local files = {
+		"examples/a.luau",
+		"examples/b.luau",
+	}
+
+	for _, path in files do
+		local source = fs.readfiletostring(path)
+		local result = printer.print(parser.parse(source))
+
+		-- FIXME: we currently don't handle the EOF character (and its trivia) in the CST
+		result ..= "\n"
+
+		assert(source == result)
+	end
+end
+
 test_tokenContainsLeadingSpaces()
 test_tokenContainsLeadingNewline()
 test_tokenContainsLeadingSingleLineComment()
 test_tokenContainsLeadingBlockComment()
 test_tokenizeWhitespace()
+test_roundtrippableAst()

@@ -3,6 +3,20 @@ local fs = require("@lute/fs")
 
 local parser = require("@batteries/syntax/parser")
 local printer = require("@batteries/syntax/printer")
+local T = require("@batteries/syntax/ast_types")
+
+local function assertEqualsLocation(
+	actual: T.Location,
+	startLine: number,
+	startColumn: number,
+	endLine: number,
+	endColumn: number
+)
+	assert(actual.begin.line == startLine)
+	assert(actual.begin.column == startColumn)
+	assert(actual["end"].line == endLine)
+	assert(actual["end"].column == endColumn)
+end
 
 local function test_tokenContainsLeadingSpaces()
 	local block = luau.parse("  local x = 1").root
@@ -15,6 +29,7 @@ local function test_tokenContainsLeadingSpaces()
 	assert(#token.leadingTrivia == 1)
 	assert(token.leadingTrivia[1].tag == "whitespace")
 	assert(token.leadingTrivia[1].text == "  ")
+	assertEqualsLocation(token.leadingTrivia[1].location, 0, 0, 0, 2)
 end
 
 local function test_tokenContainsLeadingNewline()
@@ -28,6 +43,7 @@ local function test_tokenContainsLeadingNewline()
 	assert(#token.leadingTrivia == 1)
 	assert(token.leadingTrivia[1].tag == "whitespace")
 	assert(token.leadingTrivia[1].text == "\n")
+	assertEqualsLocation(token.leadingTrivia[1].location, 0, 0, 1, 0)
 end
 
 local function test_tokenContainsLeadingSingleLineComment()
@@ -41,8 +57,10 @@ local function test_tokenContainsLeadingSingleLineComment()
 	assert(#token.leadingTrivia == 2)
 	assert(token.leadingTrivia[1].tag == "comment")
 	assert(token.leadingTrivia[1].text == "-- comment")
+	assertEqualsLocation(token.leadingTrivia[1].location, 0, 0, 0, 10)
 	assert(token.leadingTrivia[2].tag == "whitespace")
 	assert(token.leadingTrivia[2].text == "\n")
+	assertEqualsLocation(token.leadingTrivia[2].location, 0, 10, 1, 0)
 end
 
 local function test_tokenContainsLeadingBlockComment()
@@ -56,8 +74,10 @@ local function test_tokenContainsLeadingBlockComment()
 	assert(#token.leadingTrivia == 2)
 	assert(token.leadingTrivia[1].tag == "blockcomment")
 	assert(token.leadingTrivia[1].text == "--[[ comment ]]")
+	assertEqualsLocation(token.leadingTrivia[1].location, 0, 0, 0, 15)
 	assert(token.leadingTrivia[2].tag == "whitespace")
 	assert(token.leadingTrivia[2].text == " ")
+	assertEqualsLocation(token.leadingTrivia[2].location, 0, 15, 0, 16)
 end
 
 local function test_tokenizeWhitespace()

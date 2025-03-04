@@ -214,6 +214,8 @@ int main(int argc, char** argv)
             program_argv = &argv[i + 1];
             break;
         }
+        else if (argv[i][0] == '-' && argv[i][1] != '\0')
+            continue;
 
         if (parsingFiles)
             files.push_back(std::string(argv[i])); // fix: Explicit conversion

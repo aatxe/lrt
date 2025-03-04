@@ -179,9 +179,57 @@ static bool reportModuleResult(Luau::Frontend& frontend, const Luau::ModuleName&
     return cr->errors.empty() && cr->lintResult.errors.empty();
 }
 
-
-int typecheck(const std::vector<std::string> sourceFiles)
+static std::string getExtension(const std::string& path)
 {
+    size_t dot = path.find_last_of(".\\/");
+
+    if (dot == std::string::npos || path[dot] != '.')
+        return "";
+
+    return path.substr(dot);
+}
+
+std::vector<std::string> processSourceFiles(const std::vector<std::string>& sourceFilesInput)
+{
+    std::vector<std::string> files;
+
+    for (const auto& path :sourceFilesInput)
+    {
+        std::string normalized = normalizePath(path);
+
+        if (isDirectory(normalized))
+        {
+            traverseDirectory(
+                normalized,
+                [&](const std::string& name)
+                {
+                    std::string ext = getExtension(name);
+
+                    if (ext == ".lua" || ext == ".luau")
+                        files.push_back(name);
+                }
+            );
+        }
+        else
+        {
+            files.push_back(normalized);
+        }
+    }
+
+
+    return files;
+}
+
+int typecheck(const std::vector<std::string>& sourceFilesInput)
+{
+    std::vector<std::string> sourceFiles = processSourceFiles(sourceFilesInput);
+
+    if (sourceFiles.empty())
+    {
+        fprintf(stderr, "Error: lute --check expects a file to type check.\n\n");
+        return 1;
+    }
+
     Luau::Mode mode = Luau::Mode::Strict;
     bool annotate = true;
     std::string basePath = "";

@@ -63,8 +63,15 @@ public:
         ParseOptions options = ParseOptions()
     );
 
-// FIXME(lute): temporary change, we should expose a few more methods here ultimately
-//private:
+    static ParseExprResult parseExpr(
+        const char* buffer,
+        std::size_t bufferSize,
+        AstNameTable& names,
+        Allocator& allocator,
+        ParseOptions options = ParseOptions()
+    );
+
+private:
     struct Name;
     struct Binding;
 

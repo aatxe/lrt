@@ -94,6 +94,29 @@ local function test_tokenizeWhitespace()
 	assert(token.leadingTrivia[3].text == "\n")
 end
 
+local function test_triviaSplitBetweenLeadingAndTrailing()
+	local block = luau.parse("local x = 'test' -- comment\n" .. "-- comment 2\nlocal y = 'value'").root
+	assert(#block.statements == 2)
+
+	local firstStmt = block.statements[1]
+	assert(firstStmt.tag == "local")
+
+	local trailingToken = firstStmt.values[1].node
+	assert(trailingToken.tag == "string")
+	assert(#trailingToken.trailingTrivia == 3)
+	assert(trailingToken.trailingTrivia[1].text == " ")
+	assert(trailingToken.trailingTrivia[2].text == "-- comment")
+	assert(trailingToken.trailingTrivia[3].text == "\n")
+
+	local secondStmt = block.statements[2]
+	assert(secondStmt.tag == "local")
+
+	local leadingToken = secondStmt["local"]
+	assert(#leadingToken.leadingTrivia == 2)
+	assert(leadingToken.leadingTrivia[1].text == "-- comment 2")
+	assert(leadingToken.leadingTrivia[2].text == "\n")
+end
+
 local function test_roundtrippableAst()
 	local files = {
 		"examples/a.luau",
@@ -116,4 +139,5 @@ test_tokenContainsLeadingNewline()
 test_tokenContainsLeadingSingleLineComment()
 test_tokenContainsLeadingBlockComment()
 test_tokenizeWhitespace()
+test_triviaSplitBetweenLeadingAndTrailing()
 test_roundtrippableAst()

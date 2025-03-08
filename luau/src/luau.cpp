@@ -118,6 +118,8 @@ struct AstSerialize : public Luau::AstVisitor
 
     // absolute index for the table where we're storing locals
     int localTableIndex;
+    // reference to previously serialized token
+    int lastTokenRef = LUA_NOREF;
 
     AstSerialize(lua_State* L, std::string_view source, Luau::CstNodeMap cstNodeMap, std::vector<Luau::Comment> commentLocations)
         : L(L)
@@ -245,6 +247,26 @@ struct AstSerialize : public Luau::AstVisitor
         LUAU_ASSERT(currentPosition == newPos);
 
         return result;
+    }
+
+    // Splits a list of trivia into trailing trivia for the previos token, and leading trivia for the next token
+    // The trailing trivia consists of all trivia up to and including the first '\n' character seen
+    static std::pair<std::vector<Trivia>, std::vector<Trivia>> splitTrivia(std::vector<Trivia> trivia)
+    {
+        size_t i = 0;
+        for (i = 0; i < trivia.size(); i++)
+        {
+            if (trivia[i].kind == Trivia::Whitespace && trivia[i].text.find('\n') != std::string::npos)
+                break;
+        }
+
+        if (i == trivia.size())
+            return {trivia, {}};
+
+        auto middleIter(trivia.begin());
+        std::advance(middleIter, i + 1);
+
+        return {std::vector<Trivia>(trivia.begin(), middleIter), std::vector<Trivia>(middleIter, trivia.end())};
     }
 
     void serialize(Luau::Position position)
@@ -401,9 +423,27 @@ struct AstSerialize : public Luau::AstVisitor
         lua_rawcheckstack(L, 2);
         lua_createtable(L, 0, nrec + 3);
 
-        // TODO: split up into leading / trailing trivia
-        const auto leadingTrivia = extractTrivia(position);
-        serializeTrivia(leadingTrivia);
+        const auto trivia = extractTrivia(position);
+        if (lastTokenRef != LUA_NOREF)
+        {
+            const auto [trailingTrivia, leadingTrivia] = splitTrivia(trivia);
+
+            lua_getref(L, lastTokenRef);
+            LUAU_ASSERT(lua_istable(L, -1));
+
+            serializeTrivia(trailingTrivia);
+            lua_setfield(L, -2, "trailingTrivia");
+            lua_pop(L, 1);
+            lua_unref(L, lastTokenRef);
+            lastTokenRef = LUA_NOREF;
+
+            serializeTrivia(leadingTrivia);
+        }
+        else
+        {
+            serializeTrivia(trivia);
+        }
+        LUAU_ASSERT(lua_istable(L, -2));
         lua_setfield(L, -2, "leadingTrivia");
 
         serialize(position);
@@ -416,6 +456,8 @@ struct AstSerialize : public Luau::AstVisitor
         lua_rawcheckstack(L, 2);
         lua_createtable(L, 0, 0);
         lua_setfield(L, -2, "trailingTrivia");
+
+        lastTokenRef = lua_ref(L, -1);
     }
 
     void serializeLocals(Luau::AstArray<Luau::AstLocal*>& locals, size_t nrec = 0)

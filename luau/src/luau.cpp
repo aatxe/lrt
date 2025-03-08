@@ -10,6 +10,8 @@
 #include "lua.h"
 #include "lualib.h"
 
+LUAU_FASTFLAG(LuauStoreCSTData)
+
 namespace luau
 {
 
@@ -23,12 +25,16 @@ struct StatResult
 
 static StatResult parse(std::string& source)
 {
+    // TODO: this is very bad, fix it!
+    FFlag::LuauStoreCSTData.value = true;
+
     auto allocator = std::make_shared<Luau::Allocator>();
     auto names = std::make_shared<Luau::AstNameTable>(*allocator);
 
     Luau::ParseOptions options;
     options.captureComments = true;
     options.allowDeclarationSyntax = false;
+    options.storeCstData = true;
 
     auto parseResult = Luau::Parser::parse(source.data(), source.size(), *names, *allocator, options);
 
@@ -57,18 +63,210 @@ static ExprResult parseExpr(std::string& source)
     return ExprResult{allocator, names, std::move(parseResult)};
 }
 
+static std::vector<size_t> computeLineOffsets(std::string_view content)
+{
+    std::vector<size_t> result{};
+    result.emplace_back(0);
+
+    for (size_t i = 0; i < content.size(); i++)
+    {
+        auto ch = content[i];
+        if (ch == '\r' || ch == '\n')
+        {
+            if (ch == '\r' && i + 1 < content.size() && content[i + 1] == '\n')
+            {
+                i++;
+            }
+            result.push_back(i + 1);
+        }
+    }
+    return result;
+}
+
+static std::vector<Luau::Comment> commentsWithinSpan(const std::vector<Luau::Comment> comments, Luau::Location span)
+{
+    // TODO: O(n), we could probably binary search if there are a lot of comments
+    std::vector<Luau::Comment> result;
+
+    for (const auto& comment : comments)
+        if (span.encloses(comment.location))
+            result.emplace_back(comment);
+
+    return result;
+}
+
+struct Trivia {
+    enum TriviaKind {
+        Whitespace,
+        SingleLineComment,
+        MultiLineComment,
+    };
+
+    TriviaKind kind;
+    Luau::Location location;
+    std::string_view text;
+};
+
 struct AstSerialize : public Luau::AstVisitor
 {
     lua_State* L;
+    Luau::CstNodeMap cstNodeMap;
+    std::string_view source;
+    Luau::Position currentPosition{0,0};
+    std::vector<size_t> lineOffsets;
+    std::vector<Luau::Comment> commentLocations;
 
     // absolute index for the table where we're storing locals
     int localTableIndex;
+    // reference to previously serialized token
+    int lastTokenRef = LUA_NOREF;
 
-    AstSerialize(lua_State* L)
+    AstSerialize(lua_State* L, std::string_view source, Luau::CstNodeMap cstNodeMap, std::vector<Luau::Comment> commentLocations)
         : L(L)
+        , cstNodeMap(std::move(cstNodeMap))
+        , source(source)
+        , lineOffsets(computeLineOffsets(source))
+        , commentLocations(std::move(commentLocations))
     {
         lua_createtable(L, 0, 0);
         localTableIndex = lua_absindex(L, -1);
+    }
+
+    template<typename T>
+    T* lookupCstNode(Luau::AstNode* astNode)
+    {
+        // TODO: use find instead
+        if (const auto cstNode = cstNodeMap[astNode])
+            return cstNode->as<T>();
+        return nullptr;
+    }
+
+    void advancePosition(std::string_view contents)
+    {
+        if (contents.empty())
+            return;
+
+        size_t index = 0;
+        size_t numLines = 0;
+        while (true)
+        {
+            auto newlinePos = contents.find('\n', index);
+            if (newlinePos == std::string::npos)
+                break;
+            numLines++;
+            index = newlinePos + 1;
+        }
+
+        currentPosition.line += numLines;
+        if (numLines > 0)
+            currentPosition.column = unsigned(contents.size()) - index;
+        else
+            currentPosition.column += unsigned(contents.size());
+    }
+
+    std::vector<Trivia> extractWhitespace(const Luau::Position& newPos)
+    {
+        auto beginPosition = currentPosition;
+
+        LUAU_ASSERT(currentPosition < newPos);
+        LUAU_ASSERT(currentPosition.line < lineOffsets.size());
+        LUAU_ASSERT(newPos.line < lineOffsets.size());
+        size_t startOffset = lineOffsets[currentPosition.line] + currentPosition.column;
+        size_t endOffset = lineOffsets[newPos.line] + newPos.column;
+
+        std::string_view trivia = source.substr(startOffset, endOffset - startOffset);
+
+        // Tokenize whitespace into smaller parts. Whitespace is separated by `\n` characters
+        std::vector<Trivia> result;
+
+        while (!trivia.empty())
+        {
+            auto index = trivia.find('\n');
+            std::string_view part;
+            if (index == std::string::npos)
+                part = trivia;
+            else
+            {
+                part = trivia.substr(0, index + 1);
+                trivia.remove_prefix(index + 1);
+            }
+
+            advancePosition(part);
+            result.push_back(Trivia{Trivia::Whitespace, Luau::Location{beginPosition, currentPosition}, part});
+            beginPosition = currentPosition;
+
+            if (index == std::string::npos)
+                break;
+        }
+        LUAU_ASSERT(currentPosition == newPos);
+
+        return result;
+    }
+
+    std::vector<Trivia> extractTrivia(const Luau::Position& newPos)
+    {
+        LUAU_ASSERT(currentPosition <= newPos);
+        if (currentPosition == newPos)
+            return {};
+
+        std::vector<Trivia> result;
+
+        const auto comments = commentsWithinSpan(commentLocations, Luau::Location{currentPosition, newPos});
+        for (const auto& comment : comments)
+        {
+            if (currentPosition < comment.location.begin)
+            {
+                auto whitespace = extractWhitespace(comment.location.begin);
+                result.insert(result.end(), whitespace.begin(), whitespace.end());
+            }
+
+            LUAU_ASSERT(comment.location.begin.line < lineOffsets.size());
+            LUAU_ASSERT(comment.location.end.line < lineOffsets.size());
+
+            size_t startOffset = lineOffsets[comment.location.begin.line] + comment.location.begin.column;
+            size_t endOffset = lineOffsets[comment.location.end.line] + comment.location.end.column;
+
+            std::string_view commentText = source.substr(startOffset, endOffset - startOffset);
+
+            // TODO: advancePosition is more of a debug check - we can probably just set currentPosition directly here
+            advancePosition(commentText);
+            LUAU_ASSERT(currentPosition == comment.location.end);
+
+            // TODO: currently the text includes the `--` / `--[[` characters, should it?
+            LUAU_ASSERT(comment.type != Luau::Lexeme::BrokenComment);
+            auto kind = comment.type == Luau::Lexeme::Comment ? Trivia::SingleLineComment : Trivia::MultiLineComment;
+            result.emplace_back(Trivia{kind, comment.location, commentText});
+        }
+
+        if (currentPosition < newPos)
+        {
+            auto whitespace = extractWhitespace(newPos);
+            result.insert(result.end(), whitespace.begin(), whitespace.end());
+        }
+
+        LUAU_ASSERT(currentPosition == newPos);
+
+        return result;
+    }
+
+    // Splits a list of trivia into trailing trivia for the previos token, and leading trivia for the next token
+    // The trailing trivia consists of all trivia up to and including the first '\n' character seen
+    static std::pair<std::vector<Trivia>, std::vector<Trivia>> splitTrivia(std::vector<Trivia> trivia)
+    {
+        size_t i = 0;
+        for (i = 0; i < trivia.size(); i++)
+        {
+            if (trivia[i].kind == Trivia::Whitespace && trivia[i].text.find('\n') != std::string::npos)
+                break;
+        }
+
+        if (i == trivia.size())
+            return {trivia, {}};
+
+        auto middleIter(trivia.begin());
+        std::advance(middleIter, i + 1);
+
+        return {std::vector<Trivia>(trivia.begin(), middleIter), std::vector<Trivia>(middleIter, trivia.end())};
     }
 
     void serialize(Luau::Position position)
@@ -118,7 +316,7 @@ struct AstSerialize : public Luau::AstVisitor
             lua_pushvalue(L, -2);
             lua_settable(L, localTableIndex);
 
-            serialize(local->name);
+            serializeToken(local->location.begin, local->name.value);
             lua_setfield(L, -2, "name");
 
             if (local->shadow)
@@ -167,59 +365,10 @@ struct AstSerialize : public Luau::AstVisitor
 
     void serialize(Luau::AstExprBinary::Op& op)
     {
-        switch (op)
-        {
-        case Luau::AstExprBinary::Op::Add:
-            lua_pushstring(L, "+");
-            break;
-        case Luau::AstExprBinary::Op::Sub:
-            lua_pushstring(L, "-");
-            break;
-        case Luau::AstExprBinary::Op::Mul:
-            lua_pushstring(L, "*");
-            break;
-        case Luau::AstExprBinary::Op::Div:
-            lua_pushstring(L, "/");
-            break;
-        case Luau::AstExprBinary::Op::FloorDiv:
-            lua_pushstring(L, "//");
-            break;
-        case Luau::AstExprBinary::Op::Mod:
-            lua_pushstring(L, "%");
-            break;
-        case Luau::AstExprBinary::Op::Pow:
-            lua_pushstring(L, "^");
-            break;
-        case Luau::AstExprBinary::Op::Concat:
-            lua_pushstring(L, "..");
-            break;
-        case Luau::AstExprBinary::Op::CompareNe:
-            lua_pushstring(L, "~=");
-            break;
-        case Luau::AstExprBinary::Op::CompareEq:
-            lua_pushstring(L, "==");
-            break;
-        case Luau::AstExprBinary::Op::CompareLt:
-            lua_pushstring(L, "<");
-            break;
-        case Luau::AstExprBinary::Op::CompareLe:
-            lua_pushstring(L, "<=");
-            break;
-        case Luau::AstExprBinary::Op::CompareGt:
-            lua_pushstring(L, ">");
-            break;
-        case Luau::AstExprBinary::Op::CompareGe:
-            lua_pushstring(L, ">=");
-            break;
-        case Luau::AstExprBinary::Op::And:
-            lua_pushstring(L, "and");
-            break;
-        case Luau::AstExprBinary::Op::Or:
-            lua_pushstring(L, "or");
-            break;
-        case Luau::AstExprBinary::Op::Op__Count:
+        if (op == Luau::AstExprBinary::Op::Op__Count)
             luaL_error(L, "encountered illegal operator: Op__Count");
-        }
+
+        lua_pushstring(L, Luau::toString(op).data());
     }
 
     // preambleSize should encode the size of the fields we're setting up for _all_ nodes.
@@ -232,6 +381,83 @@ struct AstSerialize : public Luau::AstVisitor
         lua_setfield(L, -2, "tag");
 
         withLocation(node->location);
+    }
+
+    void serializeTrivia(const std::vector<Trivia>& trivia)
+    {
+        lua_rawcheckstack(L, 2);
+        lua_createtable(L, trivia.size(), 0);
+
+        for (size_t i = 0; i < trivia.size(); i++)
+        {
+            lua_rawcheckstack(L, 2);
+            lua_createtable(L, 0, 3);
+
+            switch (trivia[i].kind)
+            {
+                case Trivia::Whitespace:
+                    lua_pushstring(L, "whitespace");
+                    break;
+                case Trivia::SingleLineComment:
+                    lua_pushstring(L, "comment");
+                    break;
+                case Trivia::MultiLineComment:
+                    lua_pushstring(L, "blockcomment");
+                    break;
+            }
+            lua_setfield(L, -2, "tag");
+
+            serialize(trivia[i].location);
+            lua_setfield(L, -2, "location");
+
+            lua_pushlstring(L, trivia[i].text.data(), trivia[i].text.size());
+            lua_setfield(L, -2, "text");
+
+            lua_rawseti(L, -2, i + 1);
+        }
+    }
+
+    // For correct trivia computation, everything must end up going through serializeToken
+    void serializeToken(Luau::Position position, const char* text, int nrec = 0)
+    {
+        lua_rawcheckstack(L, 2);
+        lua_createtable(L, 0, nrec + 3);
+
+        const auto trivia = extractTrivia(position);
+        if (lastTokenRef != LUA_NOREF)
+        {
+            const auto [trailingTrivia, leadingTrivia] = splitTrivia(trivia);
+
+            lua_getref(L, lastTokenRef);
+            LUAU_ASSERT(lua_istable(L, -1));
+
+            serializeTrivia(trailingTrivia);
+            lua_setfield(L, -2, "trailingTrivia");
+            lua_pop(L, 1);
+            lua_unref(L, lastTokenRef);
+            lastTokenRef = LUA_NOREF;
+
+            serializeTrivia(leadingTrivia);
+        }
+        else
+        {
+            serializeTrivia(trivia);
+        }
+        LUAU_ASSERT(lua_istable(L, -2));
+        lua_setfield(L, -2, "leadingTrivia");
+
+        serialize(position);
+        lua_setfield(L, -2, "position");
+
+        lua_pushstring(L, text);
+        lua_setfield(L, -2, "text");
+        advancePosition(text);
+
+        lua_rawcheckstack(L, 2);
+        lua_createtable(L, 0, 0);
+        lua_setfield(L, -2, "trailingTrivia");
+
+        lastTokenRef = lua_ref(L, -1);
     }
 
     void serializeLocals(Luau::AstArray<Luau::AstLocal*>& locals, size_t nrec = 0)
@@ -266,6 +492,53 @@ struct AstSerialize : public Luau::AstVisitor
         for (size_t i = 0; i < stats.size; i++)
         {
             stats.data[i]->visit(this);
+            lua_rawseti(L, -2, i + 1);
+        }
+    }
+
+    template<typename T>
+    void serializePunctuated(Luau::AstArray<T> nodes, Luau::AstArray<Luau::Position> separators, const char* separatorText)
+    {
+        lua_rawcheckstack(L, 2);
+        lua_createtable(L, nodes.size, 0);
+
+        for (size_t i = 0; i < nodes.size; i++)
+        {
+            lua_rawcheckstack(L, 2);
+            lua_createtable(L, 0, 2);
+
+            nodes.data[i]->visit(this);
+            lua_setfield(L, -2, "node");
+
+            if (i < separators.size)
+                serializeToken(separators.data[i], separatorText);
+            else
+                lua_pushnil(L);
+            lua_setfield(L, -2, "separator");
+
+            lua_rawseti(L, -2, i + 1);
+        }
+    }
+
+    void serializePunctuated(Luau::AstArray<Luau::AstLocal*> nodes, Luau::AstArray<Luau::Position> separators, const char* separatorText)
+    {
+        lua_rawcheckstack(L, 2);
+        lua_createtable(L, nodes.size, 0);
+
+        for (size_t i = 0; i < nodes.size; i++)
+        {
+            lua_rawcheckstack(L, 2);
+            lua_createtable(L, 0, 2);
+
+            serialize(nodes.data[i]);
+            lua_setfield(L, -2, "node");
+
+            if (i < separators.size)
+                serializeToken(separators.data[i], separatorText);
+            else
+                lua_pushnil(L);
+            lua_setfield(L, -2, "separator");
+
             lua_rawseti(L, -2, i + 1);
         }
     }
@@ -313,13 +586,41 @@ struct AstSerialize : public Luau::AstVisitor
 
     void serialize(Luau::AstExprConstantString* node)
     {
-        lua_rawcheckstack(L, 2);
-        lua_createtable(L, 0, preambleSize + 1);
+        if (const auto cstNode = lookupCstNode<Luau::CstExprConstantString>(node))
+        {
+            serializeToken(node->location.begin, cstNode->sourceString.data, preambleSize);
 
-        serializeNodePreamble(node, "number");
+            switch (cstNode->quoteStyle)
+            {
+            case Luau::CstExprConstantString::QuotedSingle:
+                lua_pushstring(L, "single");
+                break;
+            case Luau::CstExprConstantString::QuotedDouble:
+                lua_pushstring(L, "double");
+                break;
+            case Luau::CstExprConstantString::QuotedRaw:
+                lua_pushstring(L, "block");
+                break;
+            case Luau::CstExprConstantString::QuotedInterp:
+                lua_pushstring(L, "interp");
+                break;
+            }
+            lua_setfield(L, -2, "quoteStyle");
 
-        lua_pushlstring(L, node->value.data, node->value.size);
-        lua_setfield(L, -2, "value");
+            lua_pushnumber(L, cstNode->blockDepth);
+            lua_setfield(L, -2, "blockDepth");
+        }
+        else
+        {
+            serializeToken(node->location.begin, node->value.data, preambleSize);
+        }
+
+        serializeNodePreamble(node, "string");
+
+        // Unlike normal tokens, string content contains quotation marks that were not included during advancement
+        // For simplicity, lets set the current position manually
+        LUAU_ASSERT(currentPosition <= node->location.end);
+        currentPosition = node->location.end;
     }
 
     void serialize(Luau::AstExprLocal* node)
@@ -328,6 +629,9 @@ struct AstSerialize : public Luau::AstVisitor
         lua_createtable(L, 0, preambleSize + 2);
 
         serializeNodePreamble(node, "local");
+
+        serializeToken(node->location.begin, node->local->name.value);
+        lua_setfield(L, -2, "token"),
 
         serialize(node->local);
         lua_setfield(L, -2, "local");
@@ -343,7 +647,7 @@ struct AstSerialize : public Luau::AstVisitor
 
         serializeNodePreamble(node, "global");
 
-        lua_pushstring(L, node->name.value);
+        serializeToken(node->location.begin, node->name.value);
         lua_setfield(L, -2, "name");
     }
 
@@ -357,17 +661,33 @@ struct AstSerialize : public Luau::AstVisitor
 
     void serialize(Luau::AstExprCall* node)
     {
+        const auto cstNode = lookupCstNode<Luau::CstExprCall>(node);
+
         lua_rawcheckstack(L, 2);
-        lua_createtable(L, 0, preambleSize + 2);
+        lua_createtable(L, 0, preambleSize + 5);
 
         serializeNodePreamble(node, "call");
 
         node->func->visit(this);
         lua_setfield(L, -2, "func");
 
-        serializeExprs(node->args, 1);
-        withLocation(node->argLocation);
+        if (cstNode && cstNode->openParens)
+            serializeToken(*cstNode->openParens, "(");
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "openParens");
+
+        serializePunctuated(node->args, cstNode ? cstNode->commaPositions : Luau::AstArray<Luau::Position>{}, ",");
         lua_setfield(L, -2, "arguments");
+
+        serialize(node->argLocation);
+        lua_setfield(L, -2, "argLocation");
+
+        if (cstNode && cstNode->closeParens)
+            serializeToken(*cstNode->closeParens, ")");
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "closeParens");
     }
 
     void serialize(Luau::AstExprIndexName* node)
@@ -380,17 +700,13 @@ struct AstSerialize : public Luau::AstVisitor
         node->expr->visit(this);
         lua_setfield(L, -2, "expr");
 
-        serialize(node->index);
+        serializeToken(node->opPosition, std::string(1, node->op).data());
+        lua_setfield(L, -2, "accessor");
+
+        serializeToken(node->indexLocation.begin, node->index.value);
         lua_setfield(L, -2, "index");
         serialize(node->indexLocation);
         lua_setfield(L, -2, "indexLocation");
-
-        lua_createtable(L, 0, 2);
-        lua_pushlstring(L, &node->op, 1);
-        lua_setfield(L, -2, "value");
-        serialize(node->opPosition);
-        lua_setfield(L, -2, "position");
-        lua_setfield(L, -2, "accessor");
     }
 
     void serialize(Luau::AstExprIndexExpr* node)
@@ -442,9 +758,12 @@ struct AstSerialize : public Luau::AstVisitor
     void serialize(Luau::AstExprTable* node)
     {
         lua_rawcheckstack(L, 3);
-        lua_createtable(L, 0, preambleSize + 1);
+        lua_createtable(L, 0, preambleSize + 3);
 
         serializeNodePreamble(node, "table");
+
+        serializeToken(node->location.begin, "{");
+        lua_setfield(L, -2, "openBrace");
 
         lua_createtable(L, node->items.size, 0);
         for (size_t i = 0; i < node->items.size; i++)
@@ -453,6 +772,9 @@ struct AstSerialize : public Luau::AstVisitor
             lua_rawseti(L, -2, i + 1);
         }
         lua_setfield(L, -2, "entries");
+
+        serializeToken(Luau::Position{node->location.end.line, node->location.end.column - 1}, "}");
+        lua_setfield(L, -2, "closeBrace");
     }
 
     void serialize(Luau::AstExprUnary* node)
@@ -487,11 +809,14 @@ struct AstSerialize : public Luau::AstVisitor
 
         serializeNodePreamble(node, "binary");
 
-        serialize(node->op);
-        lua_setfield(L, -2, "operator");
-
         node->left->visit(this);
         lua_setfield(L, -2, "lhsoperand");
+
+        if (const auto cstNode = lookupCstNode<Luau::CstExprOp>(node))
+            serializeToken(cstNode->opPosition, Luau::toString(node->op).data());
+        else
+            serialize(node->op);
+        lua_setfield(L, -2, "operator");
 
         node->right->visit(this);
         lua_setfield(L, -2, "rhsoperand");
@@ -662,11 +987,15 @@ struct AstSerialize : public Luau::AstVisitor
     void serializeStat(Luau::AstStatReturn* node)
     {
         lua_rawcheckstack(L, 2);
-        lua_createtable(L, 0, preambleSize + 1);
+        lua_createtable(L, 0, preambleSize + 3);
 
         serializeNodePreamble(node, "return");
 
-        serializeExprs(node->list);
+        serializeToken(node->location.begin, "return");
+        lua_setfield(L, -2, "return");
+
+        const auto cstNode = lookupCstNode<Luau::CstStatReturn>(node);
+        serializePunctuated(node->list, cstNode ? cstNode->commaPositions : Luau::AstArray<Luau::Position>{}, ",");
         lua_setfield(L, -2, "expressions");
     }
 
@@ -688,17 +1017,21 @@ struct AstSerialize : public Luau::AstVisitor
 
         serializeNodePreamble(node, "local");
 
-        serializeLocals(node->vars);
+        serializeToken(node->location.begin, "local");
+        lua_setfield(L, -2, "local");
+
+        const auto cstNode = lookupCstNode<Luau::CstStatLocal>(node);
+        serializePunctuated(node->vars, cstNode ? cstNode->varsCommaPositions : Luau::AstArray<Luau::Position>{}, ",");
         lua_setfield(L, -2, "variables");
 
-        serializeExprs(node->values);
-        lua_setfield(L, -2, "values");
-
         if (node->equalsSignLocation)
-            serialize(*node->equalsSignLocation);
+            serializeToken(node->equalsSignLocation->begin, "=");
         else
             lua_pushnil(L);
-        lua_setfield(L, -2, "equalsSignLocation");
+        lua_setfield(L, -2, "equals");
+
+        serializePunctuated(node->values, cstNode ? cstNode->valuesCommaPositions : Luau::AstArray<Luau::Position>{}, ",");
+        lua_setfield(L, -2, "values");
     }
 
     void serializeStat(Luau::AstStatFor* node)
@@ -1269,7 +1602,7 @@ int luau_parse(lua_State* L)
 
     lua_createtable(L, 0, 2);
 
-    AstSerialize serializer{L};
+    AstSerialize serializer{L, source, result.parseResult.cstNodeMap, result.parseResult.commentLocations};
     serializer.visit(result.parseResult.root);
     lua_setfield(L, -2, "root");
 
@@ -1313,7 +1646,7 @@ int luau_parseexpr(lua_State* L)
         luaL_error(L, "parsing failed:\n%s", fullError.c_str());
     }
 
-    AstSerialize serializer{L};
+    AstSerialize serializer{L, source, result.parseResult.cstNodeMap, result.parseResult.commentLocations};
     serializer.visit(result.parseResult.expr);
 
     return 1;

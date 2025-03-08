@@ -1029,17 +1029,23 @@ struct AstSerialize : public Luau::AstVisitor
 
         serializeNodePreamble(node, "while");
 
+        serializeToken(node->location.begin, "while");
+        lua_setfield(L, -2, "while");
+
         node->condition->visit(this);
         lua_setfield(L, -2, "condition");
+
+        if (node->hasDo)
+            serializeToken(node->doLocation.begin, "do");
+        else
+            lua_pushnil(L);
+        lua_setfield(L, -2, "do");
 
         node->body->visit(this);
         lua_setfield(L, -2, "body");
 
-        if (node->hasDo)
-            serialize(node->doLocation);
-        else
-            lua_pushnil(L);
-        lua_setfield(L, -2, "doLocation");
+        serializeToken(node->body->location.end, "end");
+        lua_setfield(L, -2, "end");
     }
 
     void serializeStat(Luau::AstStatRepeat* node)

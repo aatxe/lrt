@@ -266,6 +266,21 @@ export type AstStatCompoundAssign = {
 	value: AstExpr,
 }
 
+export type AstStatFunction = {
+	tag: "function",
+	["function"]: Token<"function">,
+	name: AstExpr,
+	body: AstFunctionBody,
+}
+
+export type AstStatLocalFunction = {
+	tag: "localfunction",
+	["local"]: Token<"local">,
+	["function"]: Token<"function">,
+	name: AstLocal,
+	body: AstFunctionBody,
+}
+
 export type AstStat =
 	| AstStatBlock
 	| AstStatIf
@@ -280,5 +295,7 @@ export type AstStat =
 	| AstStatForIn
 	| AstStatAssign
 	| AstStatCompoundAssign
+	| AstStatFunction
+	| AstStatLocalFunction
 
 return {}

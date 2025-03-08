@@ -13,6 +13,8 @@ type Visitor = {
 	visitForIn: (T.AstStatForIn) -> boolean,
 	visitAssign: (T.AstStatAssign) -> boolean,
 	visitCompoundAssign: (T.AstStatCompoundAssign) -> boolean,
+	visitFunction: (T.AstStatFunction) -> boolean,
+	visitLocalFunction: (T.AstStatLocalFunction) -> boolean,
 
 	visitLocalReference: (T.AstExprLocal) -> boolean,
 	visitGlobal: (T.AstExprGlobal) -> boolean,
@@ -50,6 +52,8 @@ local defaultVisitor: Visitor = {
 	visitForIn = alwaysVisit :: any,
 	visitAssign = alwaysVisit :: any,
 	visitCompoundAssign = alwaysVisit :: any,
+	visitFunction = alwaysVisit :: any,
+	visitLocalFunction = alwaysVisit :: any,
 
 	visitLocalReference = alwaysVisit :: any,
 	visitGlobal = alwaysVisit :: any,
@@ -290,6 +294,23 @@ local function visitAnonymousFunction(node: T.AstExprAnonymousFunction, visitor:
 	end
 end
 
+local function visitFunction(node: T.AstStatFunction, visitor: Visitor)
+	if visitor.visitFunction(node) then
+		visitToken(node["function"], visitor)
+		visitExpression(node.name, visitor)
+		visitFunctionBody(node.body, visitor)
+	end
+end
+
+local function visitLocalFunction(node: T.AstStatLocalFunction, visitor: Visitor)
+	if visitor.visitLocalFunction(node) then
+		visitToken(node["local"], visitor)
+		visitToken(node["function"], visitor)
+		visitLocal(node.name, visitor)
+		visitFunctionBody(node.body, visitor)
+	end
+end
+
 local function visitTableItem(node: T.AstExprTableItem, visitor: Visitor)
 	if visitor.visitTableItem(node) then
 		if node.kind == "list" then
@@ -412,6 +433,10 @@ function visitStatement(statement: T.AstStat, visitor: Visitor)
 		visitAssign(statement, visitor)
 	elseif statement.tag == "compoundassign" then
 		visitCompoundAssign(statement, visitor)
+	elseif statement.tag == "function" then
+		visitFunction(statement, visitor)
+	elseif statement.tag == "localfunction" then
+		visitLocalFunction(statement, visitor)
 	else
 		exhaustiveMatch(statement.tag)
 	end

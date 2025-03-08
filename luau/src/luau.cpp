@@ -796,9 +796,8 @@ struct AstSerialize : public Luau::AstVisitor
             lua_setfield(L, -2, "openParens");
         }
 
-        serializeLocals(node->args, node->argLocation ? 1 : 0);
-        if (node->argLocation)
-            withLocation(*node->argLocation);
+        // TODO: separators
+        serializePunctuated(node->args, {}, ",");
         lua_setfield(L, -2, "parameters");
 
         // TODO: generics, return types, etc.

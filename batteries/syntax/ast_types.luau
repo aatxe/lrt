@@ -104,6 +104,7 @@ export type AstFunctionBody = {
 	-- TODO: generics
 	openParens: Token<"(">,
 	-- TODO: parameters
+	parameters: Punctuated<Token<string>>,
 	closeParens: Token<")">,
 	-- TODO: return type
 	body: AstStatBlock,

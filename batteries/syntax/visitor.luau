@@ -198,10 +198,7 @@ end
 
 local function visitFunctionBody(node: T.AstFunctionBody, visitor: Visitor)
 	visitToken(node.openParens, visitor)
-	-- TODO: parameters
-	-- for _, item in node.parameters do
-	-- 	visitLocal(item, visitor)
-	-- end
+	visitPunctuated(node.parameters, visitor, visitLocal)
 	visitToken(node.closeParens, visitor)
 	visitBlock(node.body, visitor)
 	visitToken(node["end"], visitor)

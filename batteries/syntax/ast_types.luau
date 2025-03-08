@@ -229,7 +229,7 @@ export type AstStatLocal = {
 export type AstStatFor = {
 	tag: "for",
 	["for"]: Token<"for">,
-	variable: Token<string>,
+	variable: AstLocal,
 	equals: Token<"=">,
 	from: AstExpr,
 	toComma: Token<",">,
@@ -251,6 +251,21 @@ export type AstStatForIn = {
 	body: AstStatBlock,
 	["end"]: Token<"end">,
 }
+
+export type AstStatAssign = {
+	tag: "assign",
+	variables: Punctuated<AstExpr>,
+	equals: Token<"=">,
+	values: Punctuated<AstExpr>,
+}
+
+export type AstStatCompoundAssign = {
+	tag: "compoundassign",
+	variable: AstExpr,
+	operand: Token, -- TODO: enforce token type,
+	value: AstExpr,
+}
+
 export type AstStat =
 	| AstStatBlock
 	| AstStatIf
@@ -263,5 +278,7 @@ export type AstStat =
 	| AstStatLocal
 	| AstStatFor
 	| AstStatForIn
+	| AstStatAssign
+	| AstStatCompoundAssign
 
 return {}

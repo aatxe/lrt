@@ -11,6 +11,8 @@ type Visitor = {
 	visitLocalDeclaration: (T.AstStatLocal) -> boolean,
 	visitFor: (T.AstStatFor) -> boolean,
 	visitForIn: (T.AstStatForIn) -> boolean,
+	visitAssign: (T.AstStatAssign) -> boolean,
+	visitCompoundAssign: (T.AstStatCompoundAssign) -> boolean,
 
 	visitLocalReference: (T.AstExprLocal) -> boolean,
 	visitGlobal: (T.AstExprGlobal) -> boolean,
@@ -46,6 +48,8 @@ local defaultVisitor: Visitor = {
 	visitLocalDeclaration = alwaysVisit :: any,
 	visitFor = alwaysVisit :: any,
 	visitForIn = alwaysVisit :: any,
+	visitAssign = alwaysVisit :: any,
+	visitCompoundAssign = alwaysVisit :: any,
 
 	visitLocalReference = alwaysVisit :: any,
 	visitGlobal = alwaysVisit :: any,
@@ -182,6 +186,22 @@ local function visitForIn(node: T.AstStatForIn, visitor: Visitor)
 		visitToken(node["do"], visitor)
 		visitBlock(node.body, visitor)
 		visitToken(node["end"], visitor)
+	end
+end
+
+local function visitAssign(node: T.AstStatAssign, visitor: Visitor)
+	if visitor.visitAssign(node) then
+		visitPunctuated(node.variables, visitor, visitExpression)
+		visitToken(node.equals, visitor)
+		visitPunctuated(node.values, visitor, visitExpression)
+	end
+end
+
+local function visitCompoundAssign(node: T.AstStatCompoundAssign, visitor: Visitor)
+	if visitor.visitCompoundAssign(node) then
+		visitExpression(node.variable, visitor)
+		visitToken(node.operand, visitor)
+		visitExpression(node.value, visitor)
 	end
 end
 
@@ -388,6 +408,10 @@ function visitStatement(statement: T.AstStat, visitor: Visitor)
 		visitFor(statement, visitor)
 	elseif statement.tag == "forin" then
 		visitForIn(statement, visitor)
+	elseif statement.tag == "assign" then
+		visitAssign(statement, visitor)
+	elseif statement.tag == "compoundassign" then
+		visitCompoundAssign(statement, visitor)
 	else
 		exhaustiveMatch(statement.tag)
 	end

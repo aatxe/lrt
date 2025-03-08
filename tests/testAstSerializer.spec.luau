@@ -130,6 +130,8 @@ local function test_roundtrippableAst()
 		"examples/time_example.luau",
 		"examples/writeFile.luau",
 		"tests/astSerializerTests/break-continue-1.luau",
+		"tests/astSerializerTests/generic-for-loop-1.luau",
+		"tests/astSerializerTests/numeric-for-loop-1.luau",
 		"tests/astSerializerTests/while-1.luau",
 		"tests/astSerializerTests/repeat-until-1.luau",
 	}

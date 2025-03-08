@@ -226,6 +226,31 @@ export type AstStatLocal = {
 	values: Punctuated<AstExpr>,
 }
 
+export type AstStatFor = {
+	tag: "for",
+	["for"]: Token<"for">,
+	variable: Token<string>,
+	equals: Token<"=">,
+	from: AstExpr,
+	toComma: Token<",">,
+	to: AstExpr,
+	stepComma: Token<",">?,
+	step: AstExpr?,
+	["do"]: Token<"do">,
+	body: AstStatBlock,
+	["end"]: Token<"end">,
+}
+
+export type AstStatForIn = {
+	tag: "forin",
+	["for"]: Token<"for">,
+	variables: Punctuated<Token<string>>,
+	["in"]: Token<"in">,
+	values: Punctuated<Token<string>>,
+	["do"]: Token<"do">,
+	body: AstStatBlock,
+	["end"]: Token<"end">,
+}
 export type AstStat =
 	| AstStatBlock
 	| AstStatIf
@@ -236,5 +261,7 @@ export type AstStat =
 	| AstStatReturn
 	| AstStatExpr
 	| AstStatLocal
+	| AstStatFor
+	| AstStatForIn
 
 return {}

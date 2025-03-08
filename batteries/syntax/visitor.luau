@@ -9,6 +9,8 @@ type Visitor = {
 	visitRepeat: (T.AstStatRepeat) -> boolean,
 	visitReturn: (T.AstStatReturn) -> boolean,
 	visitLocalDeclaration: (T.AstStatLocal) -> boolean,
+	visitFor: (T.AstStatFor) -> boolean,
+	visitForIn: (T.AstStatForIn) -> boolean,
 
 	visitLocalReference: (T.AstExprLocal) -> boolean,
 	visitGlobal: (T.AstExprGlobal) -> boolean,
@@ -42,6 +44,8 @@ local defaultVisitor: Visitor = {
 	visitRepeat = alwaysVisit :: any,
 	visitReturn = alwaysVisit :: any,
 	visitLocalDeclaration = alwaysVisit :: any,
+	visitFor = alwaysVisit :: any,
+	visitForIn = alwaysVisit :: any,
 
 	visitLocalReference = alwaysVisit :: any,
 	visitGlobal = alwaysVisit :: any,
@@ -146,6 +150,38 @@ local function visitLocalStatement(node: T.AstStatLocal, visitor: Visitor)
 			visitToken(node.equals, visitor)
 		end
 		visitPunctuated(node.values, visitor, visitExpression)
+	end
+end
+
+local function visitFor(node: T.AstStatFor, visitor: Visitor)
+	if visitor.visitFor(node) then
+		visitToken(node["for"], visitor)
+		visitLocal(node.variable, visitor)
+		visitToken(node.equals, visitor)
+		visitExpression(node.from, visitor)
+		visitToken(node.toComma, visitor)
+		visitExpression(node.to, visitor)
+		if node.stepComma then
+			visitToken(node.stepComma, visitor)
+		end
+		if node.step then
+			visitExpression(node.step, visitor)
+		end
+		visitToken(node["do"], visitor)
+		visitBlock(node.body, visitor)
+		visitToken(node["end"], visitor)
+	end
+end
+
+local function visitForIn(node: T.AstStatForIn, visitor: Visitor)
+	if visitor.visitForIn(node) then
+		visitToken(node["for"], visitor)
+		visitPunctuated(node.variables, visitor, visitLocal)
+		visitToken(node["in"], visitor)
+		visitPunctuated(node.values, visitor, visitExpression)
+		visitToken(node["do"], visitor)
+		visitBlock(node.body, visitor)
+		visitToken(node["end"], visitor)
 	end
 end
 
@@ -348,6 +384,10 @@ function visitStatement(statement: T.AstStat, visitor: Visitor)
 		visitToken(statement, visitor)
 	elseif statement.tag == "repeat" then
 		visitRepeat(statement, visitor)
+	elseif statement.tag == "for" then
+		visitFor(statement, visitor)
+	elseif statement.tag == "forin" then
+		visitForIn(statement, visitor)
 	else
 		exhaustiveMatch(statement.tag)
 	end

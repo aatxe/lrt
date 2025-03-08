@@ -130,6 +130,7 @@ local function test_roundtrippableAst()
 		"examples/time_example.luau",
 		"examples/writeFile.luau",
 		"tests/astSerializerTests/while-1.luau",
+		"tests/astSerializerTests/repeat-until-1.luau",
 	}
 
 	for _, path in files do

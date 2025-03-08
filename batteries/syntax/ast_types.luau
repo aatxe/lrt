@@ -195,6 +195,14 @@ export type AstStatWhile = {
 	["end"]: Token<"end">,
 }
 
+export type AstStatRepeat = {
+	tag: "repeat",
+	["repeat"]: Token<"repeat">,
+	body: AstStatBlock,
+	["until"]: Token<"until">,
+	condition: AstExpr,
+}
+
 export type AstStatReturn = {
 	tag: "return",
 	["return"]: Token<"return">,
@@ -214,6 +222,6 @@ export type AstStatLocal = {
 	values: Punctuated<AstExpr>,
 }
 
-export type AstStat = AstStatBlock | AstStatIf | AstStatWhile | AstStatReturn | AstStatExpr | AstStatLocal
+export type AstStat = AstStatBlock | AstStatIf | AstStatWhile | AstStatRepeat | AstStatReturn | AstStatExpr | AstStatLocal
 
 return {}

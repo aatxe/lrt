@@ -6,6 +6,7 @@ type Visitor = {
 	visitBlock: (T.AstStatBlock) -> boolean,
 	visitIf: (T.AstStatIf) -> boolean,
 	visitWhile: (T.AstStatWhile) -> boolean,
+	visitRepeat: (T.AstStatRepeat) -> boolean,
 	visitReturn: (T.AstStatReturn) -> boolean,
 	visitLocalDeclaration: (T.AstStatLocal) -> boolean,
 
@@ -38,6 +39,7 @@ local defaultVisitor: Visitor = {
 	visitBlock = alwaysVisit :: any,
 	visitIf = alwaysVisit :: any,
 	visitWhile = alwaysVisit :: any,
+	visitRepeat = alwaysVisit :: any,
 	visitReturn = alwaysVisit :: any,
 	visitLocalDeclaration = alwaysVisit :: any,
 
@@ -117,6 +119,15 @@ local function visitWhile(node: T.AstStatWhile, visitor: Visitor)
 		visitToken(node["do"], visitor)
 		visitBlock(node.body, visitor)
 		visitToken(node["end"], visitor)
+	end
+end
+
+local function visitRepeat(node: T.AstStatRepeat, visitor: Visitor)
+	if visitor.visitRepeat(node) then
+		visitToken(node["repeat"], visitor)
+		visitBlock(node.body, visitor)
+		visitToken(node["until"], visitor)
+		visitExpression(node.condition, visitor)
 	end
 end
 
@@ -331,6 +342,8 @@ function visitStatement(statement: T.AstStat, visitor: Visitor)
 		visitReturn(statement, visitor)
 	elseif statement.tag == "while" then
 		visitWhile(statement, visitor)
+	elseif statement.tag == "repeat" then
+		visitRepeat(statement, visitor)
 	else
 		exhaustiveMatch(statement.tag)
 	end

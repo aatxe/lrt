@@ -1055,11 +1055,20 @@ struct AstSerialize : public Luau::AstVisitor
 
         serializeNodePreamble(node, "repeat");
 
-        node->condition->visit(this);
-        lua_setfield(L, -2, "condition");
+        serializeToken(node->location.begin, "repeat");
+        lua_setfield(L, -2, "repeat");
 
         node->body->visit(this);
         lua_setfield(L, -2, "body");
+
+        if (const auto cstNode = lookupCstNode<Luau::CstStatRepeat>(node))
+        {
+            serializeToken(cstNode->untilPosition, "until");
+            lua_setfield(L, -2, "until");
+        }
+
+        node->condition->visit(this);
+        lua_setfield(L, -2, "condition");
     }
 
     void serializeStat(Luau::AstStatBreak* node)

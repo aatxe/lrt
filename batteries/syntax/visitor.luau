@@ -342,6 +342,10 @@ function visitStatement(statement: T.AstStat, visitor: Visitor)
 		visitReturn(statement, visitor)
 	elseif statement.tag == "while" then
 		visitWhile(statement, visitor)
+	elseif statement.tag == "break" then
+		visitToken(statement, visitor)
+	elseif statement.tag == "continue" then
+		visitToken(statement, visitor)
 	elseif statement.tag == "repeat" then
 		visitRepeat(statement, visitor)
 	else

@@ -1074,16 +1074,14 @@ struct AstSerialize : public Luau::AstVisitor
     void serializeStat(Luau::AstStatBreak* node)
     {
         lua_rawcheckstack(L, 2);
-        lua_createtable(L, 0, preambleSize);
-
+        serializeToken(node->location.begin, "break", preambleSize);
         serializeNodePreamble(node, "break");
     }
 
     void serializeStat(Luau::AstStatContinue* node)
     {
         lua_rawcheckstack(L, 2);
-        lua_createtable(L, 0, preambleSize);
-
+        serializeToken(node->location.begin, "continue", preambleSize);
         serializeNodePreamble(node, "continue");
     }
 

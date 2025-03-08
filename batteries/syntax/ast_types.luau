@@ -203,6 +203,10 @@ export type AstStatRepeat = {
 	condition: AstExpr,
 }
 
+export type AstStatBreak = Token<"break"> & { tag: "break" }
+
+export type AstStatContinue = Token<"continue"> & { tag: "continue" }
+
 export type AstStatReturn = {
 	tag: "return",
 	["return"]: Token<"return">,
@@ -222,6 +226,15 @@ export type AstStatLocal = {
 	values: Punctuated<AstExpr>,
 }
 
-export type AstStat = AstStatBlock | AstStatIf | AstStatWhile | AstStatRepeat | AstStatReturn | AstStatExpr | AstStatLocal
+export type AstStat =
+	| AstStatBlock
+	| AstStatIf
+	| AstStatWhile
+	| AstStatRepeat
+	| AstStatBreak
+	| AstStatContinue
+	| AstStatReturn
+	| AstStatExpr
+	| AstStatLocal
 
 return {}

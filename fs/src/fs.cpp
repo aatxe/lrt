@@ -404,7 +404,8 @@ int listdir(lua_State* L)
 
                     uv_dirent_t dir;
                     int i = 0;
-                    while (uv_fs_scandir_next(req, &dir) != UV_EOF)
+                    int err = 0;
+                    while ((err = uv_fs_scandir_next(req, &dir)) >= 0)
                     {
                         lua_pushinteger(L, ++i);
 
@@ -418,8 +419,11 @@ int listdir(lua_State* L)
 
                         lua_settable(L, -3);
                     }
-
+                    
                     delete req;
+
+                    if (err != UV_EOF)
+                        luaL_errorL(L, "%s", uv_strerror(err));
 
                     return 1;
                 }
